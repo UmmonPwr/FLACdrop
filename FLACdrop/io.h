@@ -1,0 +1,2 @@
+int RegOut();
+int RegIn();
