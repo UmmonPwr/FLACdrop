@@ -4,11 +4,11 @@ Aim was to speed up the encoding process. The used audio libraries are designed 
 FLACdrop can run maximum eight parallel threads. Maximum parallel thread number can be set in the options menu to adjust for actual CPU performance.
 
 Currently it can convert:
-from WAV to MP3
-from WAV to FLAC
-from FLAC to WAV
+- from WAV to MP3
+- from WAV to FLAC
+- from FLAC to WAV
 
 FLACdrop is using the below audio libraries. Only the headers and the pre-built lib files are included:
-libflac 1.3.2
-libogg 1.3.2
-libmp3lame 3.99.5
+- libflac 1.3.2 ( https://xiph.org/flac/ )
+- libogg 1.3.2 ( https://www.xiph.org/ogg/ )
+- libmp3lame 3.99.5 ( http://lame.sourceforge.net/ )
