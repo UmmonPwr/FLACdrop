@@ -4,6 +4,7 @@
 #include "lame.h"
 
 extern sEncoderSettings EncSettings;			// variable to store encoder settings
+extern TCHAR *EventLogTXT;						// variable to store event log history
 HANDLE ghSemaphore;								// handle for the semaphore
 
 //
@@ -40,6 +41,7 @@ DWORD WINAPI EncoderScheduler(LPVOID *params)
 	SendMessage(myparams->progresstotal, PBM_SETPOS, 0, 0);											// reset the total progress bar
 	for (int i = 0; i<MAX_THREADS; i++) SendMessage(myparams->progress[i], PBM_SETPOS, 0, 0);		// reset each thread's progress bar
 	SendMessage(myparams->progresstotal, PBM_SETRANGE, 0, MAKELONG(0, NumFiles));					// set the total progress bar boundaries
+	SendMessage(myparams->text, WM_SETTEXT, 0, (LPARAM)L"Encoding is in progress");
 
 	ghSemaphore = CreateSemaphore(NULL, EncSettings.OUT_Threads-1, MAX_THREADS, NULL);				// number of the semaphore is the number of threads we would like to use in parallel
 	
@@ -96,17 +98,19 @@ DWORD WINAPI EncoderScheduler(LPVOID *params)
 		}
 		
 		if (ThreadStarted == true) WaitForSingleObject(ghSemaphore, INFINITE);	// a thread was started so we have to decrease the count of the semaphore with one, continue only if at least one thread is free
-		else SendMessage(myparams->progresstotal, PBM_DELTAPOS, 1, 0);			// no thread was started, but we have to increase the total progress bar
+		else SendMessage(myparams->progresstotal, PBM_DELTAPOS, 1, 0);			// no thread was started (file was not recognized), but we have to increase the total progress bar
 	}
 
-	WaitForMultipleObjects(MAX_THREADS, aThread, TRUE, INFINITE);				// wait for all threads to terminate
+	WaitForMultipleObjects(EncSettings.OUT_Threads-1, aThread, TRUE, INFINITE);	// wait for all threads to terminate
 
 	// release the memory which the system allocated for the file name transfer
 	DragFinish(myparams->filedrop);
 	myparams->EncoderInUse = false;
-
+		
 	CloseHandle(ghSemaphore);
-	for (int i=0; i<MAX_THREADS; i++) CloseHandle(aThread[i]);
+	for (int i = 0; i<EncSettings.OUT_Threads; i++) CloseHandle(aThread[i]);
+	
+	SendMessage(myparams->text, WM_SETTEXT, 0, (LPARAM)L"Waiting for audio files to be dropped...");
 
 	return ALL_OK;		// only to prevent compiler warning message
 }
@@ -116,9 +120,31 @@ DWORD WINAPI EncoderScheduler(LPVOID *params)
 //
 //	PURPOSE:	Exits the encoder thread, releases the semaphore and displays the appropiate text on the main window
 //
-void ExitEncThread(int ExitCode, HANDLE Semaphore, HWND Text, HWND progresstotal)
+void ExitEncThread(int ExitCode, HANDLE Semaphore, HWND progresstotal, WCHAR *filename, int type)
 {
-	SendMessage(Text, WM_SETTEXT, 0, (LPARAM)ErrMessage[ExitCode]);
+	WCHAR rn[] = L"\r\n";
+	WCHAR FLAC[] = L"FLAC: ";
+	WCHAR MP3[] = L"MP3: ";
+	WCHAR WAV[] = L"WAV: ";
+
+	wcscat_s(EventLogTXT, EVENTLOGSIZE, filename);
+	wcscat_s(EventLogTXT, EVENTLOGSIZE, rn);
+
+	switch (type)
+	{
+		case OUT_TYPE_FLAC:
+			wcscat_s(EventLogTXT, EVENTLOGSIZE, FLAC);
+			break;
+		case OUT_TYPE_MP3:
+			wcscat_s(EventLogTXT, EVENTLOGSIZE, MP3);
+			break;
+		case OUT_TYPE_WAV:
+			wcscat_s(EventLogTXT, EVENTLOGSIZE, WAV);
+			break;
+	}
+	wcscat_s(EventLogTXT, EVENTLOGSIZE, ErrMessage[ExitCode]);
+	wcscat_s(EventLogTXT, EVENTLOGSIZE, rn);
+
 	SendMessage(progresstotal, PBM_DELTAPOS, 1, 0);						// increase the total progress bar
 	ReleaseSemaphore(Semaphore, 1, NULL);
 	ExitThread(ExitCode);
@@ -147,12 +173,11 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 
 	// setup the message area
 	SendMessage(myparams->progress, PBM_SETPOS, 0, 0);	// reset the progress bar
-	SendMessage(myparams->text, WM_SETTEXT, 0, (LPARAM)myparams->filename);
 
 	if ((_wfopen_s(&fin, myparams->filename, L"rb")) != NULL)
 	{
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_OPEN, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
 	// read wav header and check it
@@ -160,12 +185,12 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_OPEN, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 	if (memcmp(WAVEheader.ChunkID, "RIFF", 4) || memcmp(WAVEheader.Format, "WAVE", 4))
 	{
 		fclose(fin);
-		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
 	// read the format chunk's header only for its chunk size
@@ -173,7 +198,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 	fseek(fin, -8, SEEK_CUR);
 	// read the complete wave file header according to its actual chunk size (16, 18 or 40 byte)
@@ -181,7 +206,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
 	// check if the wav file has PCM uncompressed data
@@ -189,7 +214,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_UNSUPPORTED, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_WAV_UNSUPPORTED, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
 	// check if the WAVE file has 16 or 24 bit resolution
@@ -201,7 +226,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	default:
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_NOT_16_24_BIT, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_INPUT_NOT_16_24_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
 	// search for the data chunk
@@ -220,7 +245,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_LAME_INIT, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_LAME_INIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
 	switch (FMTheader.NumChannels)
@@ -266,7 +291,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_LAME_INIT, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_LAME_INIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 	
 	// open output file
@@ -277,7 +302,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_MP3_OPEN, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 	delete []OutFileName;
 	
@@ -375,10 +400,10 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 
 	if (ok == true)
 	{
-		if (lame_close(lame_gfp) == 0) ExitEncThread(ALL_OK, ghSemaphore, myparams->text, myparams->progresstotal);
-		else ExitEncThread(FAIL_LAME_CLOSE, ghSemaphore, myparams->text, myparams->progresstotal);
+		if (lame_close(lame_gfp) == 0) ExitEncThread(ALL_OK, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+		else ExitEncThread(FAIL_LAME_CLOSE, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
-	else ExitEncThread(FAIL_LAME_ENCODE, ghSemaphore, myparams->text, myparams->progresstotal);
+	else ExitEncThread(FAIL_LAME_ENCODE, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	
 	return ALL_OK;	// only to prevent compiler warning message
 }
@@ -411,12 +436,11 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	
 	// setup the message area
 	SendMessage(myparams->progress, PBM_SETPOS, 0, 0);	// reset the progress bar
-	SendMessage(myparams->text, WM_SETTEXT, 0, (LPARAM)myparams->filename);
 	
 	if((_wfopen_s(&fin, myparams->filename, L"rb")) != NULL)
 	{
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_OPEN, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 	
 	// read wav header and check it
@@ -424,13 +448,13 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_OPEN, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 	if(memcmp(WAVEheader.ChunkID, "RIFF", 4) || memcmp(WAVEheader.Format, "WAVE", 4))
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 
 	// read the format chunk's header only to get its chunk size
@@ -438,7 +462,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 	fseek(fin, -8, SEEK_CUR);
 	// read the complete wave file header according to its actual chunk size (16, 18 or 40 byte)
@@ -446,7 +470,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 
 	// check if the wav file has PCM uncompressed data
@@ -454,7 +478,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_UNSUPPORTED, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_WAV_UNSUPPORTED, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 
 	// check if the WAVE file has 16 or 24 bit resolution
@@ -466,7 +490,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 		default:
 			fclose(fin);
 			myparams->ThreadInUse = false;
-			ExitEncThread(FAIL_NOT_16_24_BIT, ghSemaphore, myparams->text, myparams->progresstotal);
+			ExitEncThread(FAIL_INPUT_NOT_16_24_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 
 	// search for the data chunk
@@ -485,7 +509,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_LIBFLAC_ALLOC, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_LIBFLAC_ALLOC, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 	buffer_wav = new FLAC__byte[READSIZE_FLAC * FMTheader.NumChannels * (FMTheader.BitsPerSample / 8)];
 	buffer_flac = new FLAC__int32[READSIZE_FLAC * FMTheader.NumChannels];
@@ -528,7 +552,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 		{
 			fclose(fin);
 			myparams->ThreadInUse = false;
-			ExitEncThread(FAIL_FLAC_OPEN, ghSemaphore, myparams->text, myparams->progresstotal);
+			ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 		}
 		ClientData.fout = fout;
 		init_status = FLAC__stream_encoder_init_stream(encoder, write_callback_2FLAC, seek_callback_2FLAC, tell_callback_2FLAC, metadata_callback_2FLAC, &ClientData);
@@ -601,8 +625,8 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	fclose(fout);
 	myparams->ThreadInUse = false;
 
-	if (ok == TRUE) ExitEncThread(ALL_OK, ghSemaphore, myparams->text, myparams->progresstotal);
-	else ExitEncThread(FAIL_LIBFLAC_ENCODE, ghSemaphore, myparams->text, myparams->progresstotal);
+	if (ok == TRUE) ExitEncThread(ALL_OK, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
+	else ExitEncThread(FAIL_LIBFLAC_ENCODE, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	
 	return ALL_OK;	// only to prevent compiler warning message
 }
@@ -627,13 +651,12 @@ DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
 
 	// setup the message area
 	SendMessage(myparams->progress, PBM_SETPOS, 0, 0);		// reset the progress bar
-	SendMessage(myparams->text, WM_SETTEXT, 0, (LPARAM)myparams->filename);
 
 	// allocate the decoder
 	if((decoder = FLAC__stream_decoder_new()) == NULL)
 	{
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_LIBFLAC_ALLOC, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_LIBFLAC_ALLOC, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
 	}
 
 	// set the decoder parameters
@@ -643,7 +666,7 @@ DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
 	if ((_wfopen_s(&fin, myparams->filename, L"r+b")) != NULL)
 	{
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_FLAC_OPEN, ghSemaphore, myparams->text, myparams->progresstotal);
+		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
 	}
 	ClientData.fin = fin;
 
@@ -666,7 +689,7 @@ DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
 		{
 			fclose(fin);
 			myparams->ThreadInUse = false;
-			ExitEncThread(FAIL_LIBFLAC_BAD_HEADER, ghSemaphore, myparams->text, myparams->progresstotal);
+			ExitEncThread(FAIL_LIBFLAC_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
 		}
 		switch(ClientData.bps)												// check if FLAC file has 16 or 24 bit resolution
 		{
@@ -676,13 +699,13 @@ DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
 			default:
 				fclose(fin);
 				myparams->ThreadInUse = false;
-				ExitEncThread(FAIL_NOT_16_24_BIT, ghSemaphore, myparams->text, myparams->progresstotal);
+				ExitEncThread(FAIL_INPUT_NOT_16_24_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
 		}
 		if (ClientData.total_samples == 0)									// check if total_samples count is in the STREAMINFO
 		{
 			fclose(fin);
 			myparams->ThreadInUse = false;
-			ExitEncThread(FAIL_LIBFLAC_BAD_HEADER, ghSemaphore, myparams->text, myparams->progresstotal);
+			ExitEncThread(FAIL_LIBFLAC_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
 		}
 
 		// start the decoding
@@ -697,7 +720,7 @@ DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
 				delete []OutFileName;
 				fclose(fin);
 				myparams->ThreadInUse = false;
-				ExitEncThread(FAIL_WAV_OPEN, ghSemaphore, myparams->text, myparams->progresstotal);
+				ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
 			}
 			delete []OutFileName;
 			ClientData.fout = fout;
@@ -730,8 +753,8 @@ DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
 	fclose(fin);
 	myparams->ThreadInUse = false;
 
-	if (ok == TRUE) ExitEncThread(ALL_OK, ghSemaphore, myparams->text, myparams->progresstotal);
-	else ExitEncThread(FAIL_LIBFLAC_DECODE, ghSemaphore, myparams->text, myparams->progresstotal);
+	if (ok == TRUE) ExitEncThread(ALL_OK, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
+	else ExitEncThread(FAIL_LIBFLAC_DECODE, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
 
 	return ALL_OK;
 }
