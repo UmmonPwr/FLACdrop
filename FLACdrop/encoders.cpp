@@ -101,7 +101,7 @@ DWORD WINAPI EncoderScheduler(LPVOID *params)
 		else SendMessage(myparams->progresstotal, PBM_DELTAPOS, 1, 0);			// no thread was started (file was not recognized), but we have to increase the total progress bar
 	}
 
-	WaitForMultipleObjects(EncSettings.OUT_Threads-1, aThread, TRUE, INFINITE);	// wait for all threads to terminate
+	WaitForMultipleObjects(EncSettings.OUT_Threads, aThread, TRUE, INFINITE);	// wait for all threads to terminate
 
 	// release the memory which the system allocated for the file name transfer
 	DragFinish(myparams->filedrop);

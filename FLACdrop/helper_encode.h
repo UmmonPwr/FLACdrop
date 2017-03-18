@@ -84,7 +84,7 @@ struct sEncoderSettings
 	bool LAME_Flush;
 	bool LAME_NoGap;
 	int OUT_Type;						// 0: FLAC; 1: MP3
-	int OUT_Threads;					// 1..4
+	int OUT_Threads;					// 1..MAX_THREADS
 };
 
 // wave file header
