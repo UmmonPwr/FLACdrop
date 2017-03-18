@@ -4,7 +4,8 @@
 #include "Encoders.h"
 
 // Global variables defined in FLACdrop.cpp
-extern sEncoderSettings EncSettings;
+extern sEncoderSettings EncSettings;					// Variable to store encoder settings
+extern TCHAR *EventLogTXT;								// variable to store event log history
 
 //
 //	FUNCTION:	About(HWND, UINT, WPARAM, LPARAM)
@@ -181,6 +182,33 @@ INT_PTR CALLBACK Settings(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 }
 
 //
+//	FUNCTION:	EventLog(HWND, UINT, WPARAM, LPARAM)
+//
+//	PURPOSE:	Message handler for event log dialog
+//
+INT_PTR CALLBACK EventLog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
+{
+	UNREFERENCED_PARAMETER(lParam);
+	HWND hDlgLogWindow = GetDlgItem(hDlg, IDC_LOGWINDOW);
+
+	switch (message)
+	{
+	case WM_INITDIALOG:
+		SendMessage(hDlgLogWindow, WM_SETTEXT, 0, (LPARAM)EventLogTXT);
+		return (INT_PTR)TRUE;
+
+	case WM_COMMAND:
+		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+		{
+			EndDialog(hDlg, LOWORD(wParam));
+			return (INT_PTR)TRUE;
+		}
+		break;
+	}
+	return (INT_PTR)FALSE;
+}
+
+//
 //	FUNCTION:	MainForm(HWND, UINT, WPARAM, LPARAM)
 //
 //	PURPOSE:	Handle the "drag and drop" audio files and pass them to the encoder scheduler
@@ -205,7 +233,7 @@ INT_PTR CALLBACK MainForm(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 			UIParameters.progress[7] = GetDlgItem(hDlg, IDC_PROGRESS7);
 			UIParameters.progresstotal = GetDlgItem(hDlg, IDC_PROGRESSTOTAL);
 			UIParameters.text = GetDlgItem(hDlg, IDC_MESSAGES);
-			SendMessage(UIParameters.text, WM_SETTEXT, 0, (LPARAM)L"Waiting for dropped WAV or FLAC files...");
+			SendMessage(UIParameters.text, WM_SETTEXT, 0, (LPARAM)L"Waiting for audio files to be dropped...");
 			
 			result = RegIn();			// load the encoder settings
 			if (result != 0) SendMessage(UIParameters.text, WM_SETTEXT, 0, (LPARAM)ErrMessage[result]);

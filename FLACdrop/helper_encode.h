@@ -5,8 +5,10 @@
 #define READSIZE_FLAC 1048576		// size of a block to read from disk in bytes for the FLAC encoder algorithm
 #define READSIZE_MP3 8192			// size of a block to read from disk in bytes for the MP3 encoder algorithm
 #define MAXFILENAMELENGTH 1024		// maximum size of a file name with full path
+#define EVENTLOGSIZE 65536			// maximum character size of the event log
 #define OUT_TYPE_FLAC 0
 #define OUT_TYPE_MP3 1
+#define OUT_TYPE_WAV 2
 
 // default values of system variables
 #define FLAC_ENCODINGQUALITY 6	// 1..8
@@ -33,45 +35,41 @@ const int LAME_CBRBITRATES[] = {
 #define LAME_CBRBITRATES_QUANTITY 10	// quantity of "LAME_BITRATES"-1
 
 // failure codes
-#define ALL_OK					0
-#define FAIL_WAV_OPEN			1
-#define FAIL_FLAC_OPEN			2
-#define FAIL_MP3_OPEN			3
-#define FAIL_WAV_BAD_HEADER		4
-#define FAIL_WAV_UNSUPPORTED	5
-#define FAIL_NOT_16_24_BIT		6
-#define FAIL_LIBFLAC_BAD_HEADER	7
-#define FAIL_LIBFLAC_ALLOC		8
-#define FAIL_LIBFLAC_ENCODE		9
-#define FAIL_LIBFLAC_DECODE		10
-#define FAIL_REGISTRY_OPEN		11
-#define FAIL_REGISTRY_WRITE		12
-#define FAIL_REGISTRY_READ		13
-#define FAIL_LAME_INIT			14
-#define FAIL_LAME_ID3TAG		15
-#define FAIL_LAME_ENCODE		16
-#define FAIL_LAME_CLOSE			17
+#define ALL_OK						0
+#define FAIL_FILE_OPEN				1
+#define FAIL_WAV_BAD_HEADER			2
+#define FAIL_WAV_UNSUPPORTED		3
+#define FAIL_INPUT_NOT_16_24_BIT	4
+#define FAIL_LIBFLAC_BAD_HEADER		5
+#define FAIL_LIBFLAC_ALLOC			6
+#define FAIL_LIBFLAC_ENCODE			7
+#define FAIL_LIBFLAC_DECODE			8
+#define FAIL_REGISTRY_OPEN			9
+#define FAIL_REGISTRY_WRITE			10
+#define FAIL_REGISTRY_READ			11
+#define FAIL_LAME_INIT				12
+#define FAIL_LAME_ID3TAG			13
+#define FAIL_LAME_ENCODE			14
+#define FAIL_LAME_CLOSE				15
 
 // failure messages for failure codes
 const WCHAR ErrMessage [][50] = {
-	L"OK",											//0
-	L"Error during opening the .wav file",			//1
-	L"Error during opening the .flac file",			//2
-	L"Error during opening the .mp3 file",			//3
-	L"Invalid WAVE file header",					//4
-	L"Unsupported WAVE file compression format",	//5
-	L"Only 16 and 24 bit files are supported",		//6
-	L"Invalid FLAC file header",					//7
-	L"Error during allocating libFLAC encoder",		//8
-	L"Encoding failed",								//9
-	L"Decoding failed",								//10
-	L"Registry open failed",						//11
-	L"Registry writing failed",						//12
-	L"Registry reading failed",						//13
-	L"Error during libmp3lame initialization",		//14
-	L"Error during libmp3lame writing ID3TAG",		//15
-	L"Error during libmp3lame encoding",			//16
-	L"Error during libmp3lame closing"};			//17
+	L"OK\r\n",											//0
+	L"Error during opening the file\r\n",				//1
+	L"Invalid WAVE file header\r\n",					//2
+	L"Unsupported WAVE file compression format\r\n",	//3
+	L"Only 16 and 24 bit files are supported\r\n",		//4
+	L"Invalid FLAC file header\r\n",					//5
+	L"Error during allocating libFLAC encoder\r\n",		//6
+	L"Encoding failed\r\n",								//7
+	L"Decoding failed\r\n",								//8
+	L"Registry open failed\r\n",						//9
+	L"Registry writing failed\r\n",						//10
+	L"Registry reading failed\r\n",						//11
+	L"Error during libmp3lame initialization\r\n",		//12
+	L"Error during libmp3lame writing ID3TAG\r\n",		//13
+	L"Error during libmp3lame encoding\r\n",			//14
+	L"Error during libmp3lame closing\r\n"};			//15
 
 // global encoder settings
 struct sEncoderSettings

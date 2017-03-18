@@ -14,6 +14,7 @@ TCHAR szTitle[MAX_LOADSTRING];					// The title bar text
 TCHAR szWindowClass[MAX_LOADSTRING];			// the main window class name
 sEncoderSettings EncSettings;					// Variable to store encoder settings
 sUIParameters GlobalEncSettings;				// variable to store global encoder settings
+TCHAR *EventLogTXT;								// variable to store event log history
 
 // Forward declarations of functions included in this code module:
 ATOM				MyRegisterClass(HINSTANCE hInstance);
@@ -123,6 +124,9 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	ShowWindow(hWnd, nCmdShow);
 	UpdateWindow(hWnd);
 
+	EventLogTXT = new TCHAR[EVENTLOGSIZE];
+	ZeroMemory(EventLogTXT, EVENTLOGSIZE);
+
 	return true;
 }
 
@@ -159,6 +163,9 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 				case IDM_OPTIONS:
 					DialogBox(hInst, MAKEINTRESOURCE(IDD_SETTINGS), hWnd, Settings);
 					break;
+				case IDM_EVENTLOG:
+					DialogBox(hInst, MAKEINTRESOURCE(IDD_LOG), hWnd, EventLog);
+					break;
 				default:
 					return DefWindowProc(hWnd, message, wParam, lParam);
 			}
@@ -171,6 +178,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 			break;
 
 		case WM_DESTROY:
+			delete EventLogTXT;
 			PostQuitMessage(0);
 			break;
 
