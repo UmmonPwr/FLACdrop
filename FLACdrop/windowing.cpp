@@ -190,20 +190,28 @@ INT_PTR CALLBACK EventLog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
 	HWND hDlgLogWindow = GetDlgItem(hDlg, IDC_LOGWINDOW);
+	WCHAR wcnull[] = L"\0";
 
 	switch (message)
 	{
-	case WM_INITDIALOG:
-		SendMessage(hDlgLogWindow, WM_SETTEXT, 0, (LPARAM)EventLogTXT);
-		return (INT_PTR)TRUE;
-
-	case WM_COMMAND:
-		if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
-		{
-			EndDialog(hDlg, LOWORD(wParam));
+		case WM_INITDIALOG:
+			SendMessage(hDlgLogWindow, WM_SETTEXT, 0, (LPARAM)EventLogTXT);
 			return (INT_PTR)TRUE;
-		}
-		break;
+
+		case WM_COMMAND:
+			switch (LOWORD(wParam))
+			{
+				case IDOK:
+				case IDCANCEL:
+					EndDialog(hDlg, LOWORD(wParam));
+					return (INT_PTR)TRUE;
+
+				case IDC_CLEAR:
+					wcscpy_s(EventLogTXT, EVENTLOGSIZE, wcnull);
+					SendMessage(hDlgLogWindow, WM_SETTEXT, 0, (LPARAM)EventLogTXT);
+					break;
+			}
+			break;
 	}
 	return (INT_PTR)FALSE;
 }

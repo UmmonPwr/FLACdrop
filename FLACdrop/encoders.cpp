@@ -41,7 +41,7 @@ DWORD WINAPI EncoderScheduler(LPVOID *params)
 	SendMessage(myparams->progresstotal, PBM_SETPOS, 0, 0);											// reset the total progress bar
 	for (int i = 0; i<MAX_THREADS; i++) SendMessage(myparams->progress[i], PBM_SETPOS, 0, 0);		// reset each thread's progress bar
 	SendMessage(myparams->progresstotal, PBM_SETRANGE, 0, MAKELONG(0, NumFiles));					// set the total progress bar boundaries
-	SendMessage(myparams->text, WM_SETTEXT, 0, (LPARAM)L"Encoding is in progress");
+	SendMessage(myparams->text, WM_SETTEXT, 0, (LPARAM)L"Converting is in progress");
 
 	ghSemaphore = CreateSemaphore(NULL, EncSettings.OUT_Threads-1, MAX_THREADS, NULL);				// number of the semaphore is the number of threads we would like to use in parallel
 	
@@ -118,7 +118,7 @@ DWORD WINAPI EncoderScheduler(LPVOID *params)
 //
 //	FUNCTION:	ExitEncThread(int, HANDLE, HWND)
 //
-//	PURPOSE:	Exits the encoder thread, releases the semaphore and displays the appropiate text on the main window
+//	PURPOSE:	Exits the encoder thread, releases the semaphore and updates event log
 //
 void ExitEncThread(int ExitCode, HANDLE Semaphore, HWND progresstotal, WCHAR *filename, int type)
 {
