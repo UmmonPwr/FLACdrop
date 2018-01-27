@@ -29,7 +29,7 @@ int SearchFreeThread(sEncodingParameters EncParams[])
 DWORD WINAPI EncoderScheduler(LPVOID *params)
 {
 	UINT NumFiles, BufferSize;
-	static HANDLE aThread[MAX_THREADS];
+	static HANDLE aThread[MAX_THREADS];																// array for the thread identifiers
 	sUIParameters *myparams =(sUIParameters*)params;												// load the parameter list to the internal structure
 	static sEncodingParameters EncParams[MAX_THREADS];												// parameter list for each encoding thread
 	WCHAR Filename[MAXFILENAMELENGTH];
@@ -43,7 +43,10 @@ DWORD WINAPI EncoderScheduler(LPVOID *params)
 	SendMessage(myparams->progresstotal, PBM_SETRANGE, 0, MAKELONG(0, NumFiles));					// set the total progress bar boundaries
 	SendMessage(myparams->text, WM_SETTEXT, 0, (LPARAM)L"Converting is in progress");
 
-	ghSemaphore = CreateSemaphore(NULL, EncSettings.OUT_Threads-1, MAX_THREADS, NULL);				// number of the semaphore is the number of threads we would like to use in parallel
+	// number of the semaphore is the number of threads we would like to use in parallel
+	// if the number of files are less than the number of available threads then we have to create the semaphore for the number of files
+	if (EncSettings.OUT_Threads > NumFiles) ghSemaphore = CreateSemaphore(NULL, NumFiles - 1, MAX_THREADS, NULL);
+	else ghSemaphore = CreateSemaphore(NULL, EncSettings.OUT_Threads-1, MAX_THREADS, NULL);
 	
 	// setup the variales
 	for (int i=0; i<MAX_THREADS; i++) EncParams[i].ThreadInUse = false;								// reset the thread status flags
@@ -101,14 +104,17 @@ DWORD WINAPI EncoderScheduler(LPVOID *params)
 		else SendMessage(myparams->progresstotal, PBM_DELTAPOS, 1, 0);			// no thread was started (file was not recognized), but we have to increase the total progress bar
 	}
 
-	WaitForMultipleObjects(EncSettings.OUT_Threads, aThread, TRUE, INFINITE);	// wait for all threads to terminate
+	// wait for all threads to terminate
+	if (EncSettings.OUT_Threads > NumFiles) WaitForMultipleObjects(NumFiles, aThread, TRUE, INFINITE);
+	else WaitForMultipleObjects(EncSettings.OUT_Threads, aThread, TRUE, INFINITE);
 
 	// release the memory which the system allocated for the file name transfer
 	DragFinish(myparams->filedrop);
 	myparams->EncoderInUse = false;
-		
+
 	CloseHandle(ghSemaphore);
-	for (int i = 0; i<EncSettings.OUT_Threads; i++) CloseHandle(aThread[i]);
+	if (EncSettings.OUT_Threads > NumFiles) for (UINT i = 0; i<NumFiles; i++) CloseHandle(aThread[i]);
+	else for (UINT i = 0; i<EncSettings.OUT_Threads; i++) CloseHandle(aThread[i]);
 	
 	SendMessage(myparams->text, WM_SETTEXT, 0, (LPARAM)L"Waiting for audio files to be dropped...");
 
