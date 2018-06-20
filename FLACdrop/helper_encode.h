@@ -144,7 +144,8 @@ struct sEncodingParameters
 // structure for EncoderScheduler parameters
 struct sUIParameters
 {
-	bool EncoderInUse;			// is encoding running?
+	bool EncoderInUse;			// is the encoding thread running?
+	int OUT_Type;				// which output file type to use
 	HDROP filedrop;				// handle for dropped files
 	HWND progresstotal;			// handle for the total progress bar
 	HWND progress[MAX_THREADS];	// handle for each thread's progress bar

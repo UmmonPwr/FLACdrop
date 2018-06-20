@@ -112,19 +112,6 @@ INT_PTR CALLBACK Settings(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 			SendMessage(hDlgThreads, TBM_SETPOS, true, EncSettings.OUT_Threads);
 			_itow_s(EncSettings.OUT_Threads, A, sizeof(A));
 			SendMessage(hDlgThreadsView, WM_SETTEXT, NULL, (LPARAM)A);
-
-			// Setup output type radio buttons
-			switch (EncSettings.OUT_Type)
-			{
-				case 0:
-					CheckRadioButton(hDlg, IDC_RADIO_FLAC, IDC_RADIO_MP3, IDC_RADIO_FLAC);
-					break;
-
-				case 1:
-					CheckRadioButton(hDlg, IDC_RADIO_FLAC, IDC_RADIO_MP3, IDC_RADIO_MP3);
-					break;
-			}
-
 			return (INT_PTR)TRUE;
 
 		case WM_COMMAND:
@@ -146,8 +133,6 @@ INT_PTR CALLBACK Settings(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 					EncSettings.OUT_Threads = (int)SendMessage(hDlgThreads, TBM_GETPOS, 0, 0);
 
 					// Read status of radio buttons
-					if (IsDlgButtonChecked(hDlg, IDC_RADIO_FLAC) == BST_CHECKED) EncSettings.OUT_Type = 0;
-					if (IsDlgButtonChecked(hDlg, IDC_RADIO_MP3) == BST_CHECKED) EncSettings.OUT_Type = 1;
 					if (IsDlgButtonChecked(hDlg, IDC_CBR) == BST_CHECKED) EncSettings.LAME_EncodingMode = 0;
 					if (IsDlgButtonChecked(hDlg, IDC_VBR) == BST_CHECKED) EncSettings.LAME_EncodingMode = 1;
 
@@ -245,6 +230,19 @@ INT_PTR CALLBACK MainForm(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 			
 			result = RegIn();			// load the encoder settings
 			if (result != 0) SendMessage(UIParameters.text, WM_SETTEXT, 0, (LPARAM)ErrMessage[result]);
+
+			// setup output type radio buttons
+			switch (EncSettings.OUT_Type)
+			{
+			case OUT_TYPE_FLAC:
+				CheckRadioButton(hDlg, IDC_RADIO_OUT_FLAC, IDC_RADIO_OUT_MP3, IDC_RADIO_OUT_FLAC);
+				break;
+
+			case OUT_TYPE_MP3:
+				CheckRadioButton(hDlg, IDC_RADIO_OUT_FLAC, IDC_RADIO_OUT_MP3, IDC_RADIO_OUT_MP3);
+				break;
+			}
+
 			return (INT_PTR)TRUE;
 
 		// process the dropped files
@@ -253,7 +251,19 @@ INT_PTR CALLBACK MainForm(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 			{
 				UIParameters.EncoderInUse = true;
 				UIParameters.filedrop = (HDROP)wParam;
+				UIParameters.OUT_Type = EncSettings.OUT_Type;
 				CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&EncoderScheduler, &UIParameters, 0, NULL);	// start the encoder thread
+			}
+			break;
+
+		case WM_COMMAND:
+			switch (HIWORD(wParam))
+			{
+				// process the changes in the radio buttons
+				case BN_CLICKED:
+					if (IsDlgButtonChecked(hDlg, IDC_RADIO_OUT_FLAC) == BST_CHECKED) EncSettings.OUT_Type = OUT_TYPE_FLAC;
+					if (IsDlgButtonChecked(hDlg, IDC_RADIO_OUT_MP3) == BST_CHECKED) EncSettings.OUT_Type = OUT_TYPE_MP3;
+					break;
 			}
 			break;
 	}

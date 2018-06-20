@@ -111,7 +111,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	if(GetLastError() == ERROR_ALREADY_EXISTS || !hMutex) return FALSE;
 	
 	hWnd = CreateWindow(szWindowClass, szTitle, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU,
-		CW_USEDEFAULT, 0, 325, 390, NULL, NULL, hInstance, NULL);
+		CW_USEDEFAULT, 0, 325, 430, NULL, NULL, hInstance, NULL);
 
 	if (!hWnd)
 	{

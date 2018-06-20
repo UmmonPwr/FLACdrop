@@ -67,7 +67,7 @@ DWORD WINAPI EncoderScheduler(LPVOID *params)
 		// Source is WAVE file
 		if (_wcsnicmp(FilenameExt, L".wav", 4) == 0)
 		{			
-			switch (EncSettings.OUT_Type)
+			switch (myparams->OUT_Type)
 			{
 				case OUT_TYPE_FLAC:
 					tID = SearchFreeThread(EncParams);
