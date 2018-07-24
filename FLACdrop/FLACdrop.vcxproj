@@ -173,8 +173,8 @@
     <ClInclude Include="..\libmp3lame\include\lame.h" />
     <ClInclude Include="encoders.h" />
     <ClInclude Include="FLACdrop.h" />
-    <ClInclude Include="helper_encode.h" />
     <ClInclude Include="io.h" />
+    <ClInclude Include="libFLAC_callbacks.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="targetver.h" />
@@ -183,7 +183,7 @@
   <ItemGroup>
     <ClCompile Include="encoders.cpp" />
     <ClCompile Include="FLACdrop.cpp" />
-    <ClCompile Include="helper_encode.cpp" />
+    <ClCompile Include="libFLAC_callbacks.cpp" />
     <ClCompile Include="io.cpp" />
     <ClCompile Include="stdafx.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>

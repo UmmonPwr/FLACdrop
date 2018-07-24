@@ -1,10 +1,7 @@
-// FLACdrop.cpp : Defines the entry point for the application.
-//
-
 #include "stdafx.h"
 #include "FLACdrop.h"
-#include "helper_encode.h"
 #include "windowing.h"
+#include "encoders.h"
 
 #define MAX_LOADSTRING 100
 

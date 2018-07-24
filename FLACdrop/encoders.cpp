@@ -1,7 +1,8 @@
 #include "stdafx.h"
 #include "FLACdrop.h"
-#include "Encoders.h"
+#include "encoders.h"
 #include "lame.h"
+#include "libFLAC_callbacks.h"
 
 extern sEncoderSettings EncSettings;			// variable to store encoder settings
 extern TCHAR *EventLogTXT;						// variable to store event log history
@@ -92,12 +93,26 @@ DWORD WINAPI EncoderScheduler(LPVOID *params)
 		// Source is FLAC file
 		if (_wcsnicmp(FilenameExt, L".flac", 5) == 0)
 		{
-			tID = SearchFreeThread(EncParams);
-			EncParams[tID].ThreadInUse = true;
-			EncParams[tID].progress = myparams->progress[tID];
-			wcscpy_s(EncParams[tID].filename, MAXFILENAMELENGTH, Filename);
-			aThread[tID] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&Encode_FLAC2WAV, &EncParams[tID], 0, NULL);
-			ThreadStarted = true;
+			switch (myparams->OUT_Type)
+			{
+				case OUT_TYPE_FLAC:
+					tID = SearchFreeThread(EncParams);
+					EncParams[tID].ThreadInUse = true;
+					EncParams[tID].progress = myparams->progress[tID];
+					wcscpy_s(EncParams[tID].filename, MAXFILENAMELENGTH, Filename);
+					aThread[tID] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&Encode_FLAC2WAV, &EncParams[tID], 0, NULL);
+					ThreadStarted = true;
+					break;
+				
+				case OUT_TYPE_MP3:
+					tID = SearchFreeThread(EncParams);
+					EncParams[tID].ThreadInUse = true;
+					EncParams[tID].progress = myparams->progress[tID];
+					wcscpy_s(EncParams[tID].filename, MAXFILENAMELENGTH, Filename);
+					aThread[tID] = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)&Encode_FLAC2MP3, &EncParams[tID], 0, NULL);
+					ThreadStarted = true;
+					break;
+			}
 		}
 		
 		if (ThreadStarted == true) WaitForSingleObject(ghSemaphore, INFINITE);	// a thread was started so we have to decrease the count of the semaphore with one, continue only if at least one thread is free
@@ -151,7 +166,7 @@ void ExitEncThread(int ExitCode, HANDLE Semaphore, HWND progresstotal, WCHAR *fi
 	wcscat_s(EventLogTXT, EVENTLOGSIZE, ErrMessage[ExitCode]);
 	wcscat_s(EventLogTXT, EVENTLOGSIZE, rn);
 
-	SendMessage(progresstotal, PBM_DELTAPOS, 1, 0);						// increase the total progress bar
+	SendMessage(progresstotal, PBM_DELTAPOS, 1, 0);						// increase the total progress bar, we have finished with the encoding even if there was an error event
 	ReleaseSemaphore(Semaphore, 1, NULL);
 	ExitThread(ExitCode);
 }
@@ -548,7 +563,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 //		ok = FLAC__stream_encoder_set_metadata(encoder, metadata, 2);
 //	}
 
-	// initialize encoder
+	// initialize the FLACencoder
 	if(ok)
 	{
 		OutFileName = new WCHAR[MAXFILENAMELENGTH];
@@ -571,7 +586,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	}
 
 	// read blocks of samples from WAVE file and feed to the encoder
-	size_t left, need;
+	uint32_t left, need;
 	if(ok)
 	{
 		left = (size_t)total_samples;
@@ -761,6 +776,252 @@ DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
 
 	if (ok == TRUE) ExitEncThread(ALL_OK, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
 	else ExitEncThread(FAIL_LIBFLAC_DECODE, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
+
+	return ALL_OK;
+}
+
+//
+//	FUNCTION:	Encode_FLAC2MP3(sEncodingParameters* )
+//
+//	PURPOSE:	Encode FLAC stream to MP3 stream
+//
+DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
+{
+	sEncodingParameters *myparams = (sEncodingParameters*)params;
+
+	FILE *fin, *fout;
+	WCHAR* OutFileName;
+	sClientData ClientData;
+
+	FLAC__bool ok = TRUE;
+	FLAC__StreamDecoder *decoder = 0;
+	FLAC__StreamDecoderInitStatus init_status;
+	FLAC__StreamDecoderState state;
+	//FLAC__StreamMetadata *metadata[2];
+	//FLAC__StreamMetadata_VorbisComment_Entry entry;
+
+	lame_global_flags *lame_gfp;
+	BYTE *buffer_mp3, *buffer_wav;
+	int imp3, owrite;
+	//bool ok = true;
+
+	// setup the message area
+	SendMessage(myparams->progress, PBM_SETPOS, 0, 0);		// reset the progress bar
+
+	// allocate the decoder
+	if ((decoder = FLAC__stream_decoder_new()) == NULL)
+	{
+		myparams->ThreadInUse = false;
+		ExitEncThread(FAIL_LIBFLAC_ALLOC, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+	}
+
+	// set the decoder parameters
+	ok &= FLAC__stream_decoder_set_md5_checking(decoder, EncSettings.FLAC_MD5check);
+
+	// open the input file
+	if ((_wfopen_s(&fin, myparams->filename, L"r+b")) != NULL)
+	{
+		myparams->ThreadInUse = false;
+		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+	}
+	ClientData.fin = fin;
+
+	// initialize FLAC decoder
+	init_status = FLAC__stream_decoder_init_stream(decoder, read_callback_2WAV, seek_callback_2WAV, tell_callback_2WAV, length_callback_2WAV, eof_callback_2WAV, write_callback_2WAV, metadata_callback_2WAV, error_callback_2WAV, &ClientData);
+
+	if (init_status != FLAC__STREAM_DECODER_INIT_STATUS_OK)
+	{
+		fclose(fin);
+		myparams->ThreadInUse = false;
+		ExitEncThread(FAIL_LIBFLAC_ALLOC, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+	}
+
+	// check the FLAC file parameters
+	ok = FLAC__stream_decoder_process_until_end_of_metadata(decoder);	// read the first block which contains the metadata
+	if (ok == FALSE)													// check if the first block really contained the metadata
+	{
+		fclose(fin);
+		myparams->ThreadInUse = false;
+		ExitEncThread(FAIL_LIBFLAC_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+	}
+
+	// check if FLAC file has 16 or 24 bit resolution
+	switch (ClientData.bps)
+	{
+		case 16:
+		case 24:
+			break;
+		default:
+			fclose(fin);
+			myparams->ThreadInUse = false;
+			ExitEncThread(FAIL_INPUT_NOT_16_24_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+	}
+
+	// check if total_samples count is in the STREAMINFO
+	if (ClientData.total_samples == 0)
+	{
+		fclose(fin);
+		myparams->ThreadInUse = false;
+		ExitEncThread(FAIL_LIBFLAC_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+	}
+	
+	// initialize lame encoder
+	lame_gfp = lame_init();
+	if (lame_gfp == NULL)
+	{
+		fclose(fin);
+		myparams->ThreadInUse = false;
+		ExitEncThread(FAIL_LAME_INIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+	}
+
+	switch (/*FMTheader.NumChannels*/ClientData.channels)
+	{
+		case 1:
+			lame_set_mode(lame_gfp, MONO);
+			break;
+		case 2:
+			lame_set_mode(lame_gfp, JOINT_STEREO);
+			break;
+	}
+
+	// Internal algorithm selection. True quality is determined by the bitrate but this variable will effect quality by selecting expensive or cheap algorithms.
+	// quality=0..9.  0=best (very slow).  9=worst.
+	// recommended:  2     near-best quality, not too slow
+	// 5     good quality, fast
+	// 7     ok quality, really fast
+	lame_set_quality(lame_gfp, EncSettings.LAME_InternalEncodingQuality);
+
+	// turn off automatic writing of ID3 tag data into mp3 stream we have to call it before 'lame_init_params', because that function would spit out ID3v2 tag data.
+	lame_set_write_id3tag_automatic(lame_gfp, 0);
+
+	// set lame encoder parameters for CBR encoding
+	lame_set_num_channels(lame_gfp, /*FMTheader.NumChannels*/ClientData.channels);
+	lame_set_in_samplerate(lame_gfp, /*FMTheader.SampleRate*/ClientData.sample_rate);
+	lame_set_brate(lame_gfp, LAME_CBRBITRATES[EncSettings.LAME_CBRBitrate]);	// load bitrate setting from LUT
+
+	// set lame encoder parameters for VBR encoding
+	switch (EncSettings.LAME_EncodingMode)
+	{
+		case 0:	// CBR
+			lame_set_VBR(lame_gfp, vbr_off);
+			break;
+		case 1:	// VBR
+			lame_set_VBR(lame_gfp, vbr_mtrh);
+			break;
+	}
+
+	lame_set_VBR_q(lame_gfp, EncSettings.LAME_VBRQuality); // VBR quality level.  0=highest  9=lowest
+
+	// now that all the options are set, lame needs to analyze them and set some more internal options and check for problems
+	if (lame_init_params(lame_gfp) != 0)
+	{
+		fclose(fin);
+		myparams->ThreadInUse = false;
+		ExitEncThread(FAIL_LAME_INIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+	}
+
+	// allocate memory buffers
+	buffer_wav = new BYTE[READSIZE_MP3 * /*FMTheader.NumChannels*/ClientData.channels * (/*FMTheader.BitsPerSample*/ClientData.bps / 8)];
+	buffer_mp3 = new BYTE[LAME_MAXMP3BUFFER];
+
+	// move the tags from the MP3 stream to the FLAC stream
+	/*size_t  id3v2_size;
+	unsigned char *id3v2tag;
+
+	id3v2_size = lame_get_id3v2_tag(lame_gfp, 0, 0);
+	if (id3v2_size > 0)
+	{
+		id3v2tag = new unsigned char[id3v2_size];
+		if (id3v2tag != 0)
+		{
+			imp3 = lame_get_id3v2_tag(lame_gfp, id3v2tag, id3v2_size);
+			owrite = (int) fwrite(id3v2tag, 1, imp3, fout);
+			delete []id3v2tag;
+			if (owrite != imp3) return FAIL_LAME_ID3TAG;
+		}
+	}
+	else
+	{
+		unsigned char* id3v2tag = getOldTag(gf);
+		id3v2_size = sizeOfOldTag(gf);
+		if ( id3v2_size > 0 )
+		{
+			size_t owrite = fwrite(id3v2tag, 1, id3v2_size, fout);
+			if (owrite != id3v2_size) return FAIL_LAME_ID3TAG;
+		}
+	}
+	if (LAME_FLUSH == true) fflush(fout);*/
+
+	// start the transcoding
+	if (ok)
+	{
+		// open the output file
+		OutFileName = new WCHAR[MAXFILENAMELENGTH];
+		wcsncpy_s(OutFileName, MAXFILENAMELENGTH, myparams->filename, wcsnlen(myparams->filename, MAXFILENAMELENGTH) - 4);	// leave out the "flac" from the end
+		wcscat_s(OutFileName, MAXFILENAMELENGTH, L"mp3");
+		if ((_wfopen_s(&fout, OutFileName, L"w+b")) != NULL)
+		{
+			delete[]OutFileName;
+			fclose(fin);
+			myparams->ThreadInUse = false;
+			ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+		}
+		delete[]OutFileName;
+		ClientData.fout = fout;
+
+		SendMessage(myparams->progress, PBM_SETRANGE, 0, MAKELONG(0, ClientData.total_samples / ClientData.blocksize));	// set up the progress bar boundaries, block size is around 4k depending on resolution
+		// loop the decoder until it reaches the end of the input file or returns an error
+		do
+		{
+			ok = FLAC__stream_decoder_process_single(decoder);
+			state = FLAC__stream_decoder_get_state(decoder);
+			SendMessage(myparams->progress, PBM_DELTAPOS, 1, 0);	// increase the progress bar
+		} while ((state != FLAC__STREAM_DECODER_END_OF_STREAM && FLAC__STREAM_DECODER_SEEK_ERROR && FLAC__STREAM_DECODER_ABORTED && FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR) && ok == TRUE);
+	}
+
+	// close the FLAC decoder
+	switch (state)
+	{
+		case FLAC__STREAM_DECODER_SEEK_ERROR:
+		case FLAC__STREAM_DECODER_ABORTED:
+		case FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR:
+			ok = false;
+			break;
+		default:
+			break;
+	}
+	ok &= FLAC__stream_decoder_finish(decoder);
+	FLAC__stream_decoder_delete(decoder);
+
+	// close the mp3 encoder
+	// may return one more mp3 frame
+	if (ok == TRUE)
+	{
+		if (LAME_NOGAP == true) imp3 = lame_encode_flush_nogap(lame_gfp, buffer_mp3, LAME_MAXMP3BUFFER);
+		else imp3 = lame_encode_flush(lame_gfp, buffer_mp3, LAME_MAXMP3BUFFER);
+		if (imp3 < 0) ok = false;
+	}
+
+	if (ok == TRUE)
+	{
+		owrite = (int)fwrite(buffer_mp3, 1, imp3, fout);
+		if (owrite != imp3) ok = false;
+	}
+
+	if (LAME_FLUSH == true && ok == TRUE) fflush(fout);
+
+	delete[]buffer_wav;
+	delete[]buffer_mp3;
+	fclose(fin);
+	fclose(fout);
+	myparams->ThreadInUse = false;
+
+	if (ok == TRUE)
+	{
+		if (lame_close(lame_gfp) == 0) ExitEncThread(ALL_OK, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+		else ExitEncThread(FAIL_LAME_CLOSE, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+	}
+	else ExitEncThread(FAIL_LAME_ENCODE, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 
 	return ALL_OK;
 }

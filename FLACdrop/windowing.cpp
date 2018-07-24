@@ -1,7 +1,7 @@
 #include "stdafx.h"
 #include "FLACdrop.h"
 #include "io.h"
-#include "Encoders.h"
+#include "encoders.h"
 
 // Global variables defined in FLACdrop.cpp
 extern sEncoderSettings EncSettings;					// Variable to store encoder settings
