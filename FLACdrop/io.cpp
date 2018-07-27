@@ -1,5 +1,5 @@
 #include "stdafx.h"
-#include "helper_encode.h"
+#include "encoders.h"
 
 extern sEncoderSettings EncSettings;
 
