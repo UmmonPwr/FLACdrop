@@ -7,6 +7,7 @@ Currently it can convert:
 - from WAV to MP3
 - from WAV to FLAC
 - from FLAC to WAV
+- from FLAC to MP3
 
 FLACdrop is using the below audio libraries. Only the headers and the pre-built lib files are included:
 - libflac 1.3.2 GitHub version ( https://github.com/xiph/flac )

@@ -40,7 +40,7 @@ INT_PTR CALLBACK Settings(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
 
-	HWND hDlgText = GetDlgItem(hDlg, IDC_MESSAGES);
+	//HWND hDlgText = GetDlgItem(hDlg, IDC_MESSAGES);
 	HWND hDlgFLACQuality = GetDlgItem(hDlg, IDC_FLAC_QUALITY);
 	HWND hDlgFLACQualityView = GetDlgItem(hDlg, IDC_VIEW_FLAC_QUALITY);
 	HWND hDlgFLACVerify = GetDlgItem(hDlg, IDC_FLAC_VERIFY);
@@ -136,8 +136,8 @@ INT_PTR CALLBACK Settings(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 					if (IsDlgButtonChecked(hDlg, IDC_CBR) == BST_CHECKED) EncSettings.LAME_EncodingMode = 0;
 					if (IsDlgButtonChecked(hDlg, IDC_VBR) == BST_CHECKED) EncSettings.LAME_EncodingMode = 1;
 
-					result = RegOut();
-					if (result!= 0) SendMessage(hDlgText, WM_SETTEXT, 0, (LPARAM)ErrMessage[result]);
+					//result = RegOut();
+					//if (result!= 0) SendMessage(hDlgText, WM_SETTEXT, 0, (LPARAM)ErrMessage[result]);
 
 					EndDialog(hDlg, LOWORD(wParam));
 					return (INT_PTR)TRUE;
@@ -209,6 +209,8 @@ INT_PTR CALLBACK EventLog(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 INT_PTR CALLBACK MainForm(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
+
+	//HWND hDlgText = GetDlgItem(hDlg, IDC_MESSAGES);
 	static sUIParameters UIParameters;
 	int result;
 
@@ -263,6 +265,8 @@ INT_PTR CALLBACK MainForm(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 				case BN_CLICKED:
 					if (IsDlgButtonChecked(hDlg, IDC_RADIO_OUT_FLAC) == BST_CHECKED) EncSettings.OUT_Type = OUT_TYPE_FLAC;
 					if (IsDlgButtonChecked(hDlg, IDC_RADIO_OUT_MP3) == BST_CHECKED) EncSettings.OUT_Type = OUT_TYPE_MP3;
+					//result = RegOut();
+					//if (result != 0) SendMessage(hDlgText, WM_SETTEXT, 0, (LPARAM)ErrMessage[result]);
 					break;
 			}
 			break;

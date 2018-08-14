@@ -4,6 +4,7 @@
 
 #define READSIZE_FLAC 1048576		// size of a block to read from disk in bytes for the FLAC encoder algorithm
 #define READSIZE_MP3 8192			// size of a block to read from disk in bytes for the MP3 encoder algorithm
+#define SIZE_RAW_BUFFER 32768		// size of raw audio data buffer for transcoding
 #define MAXFILENAMELENGTH 1024		// maximum size of a file name with full path
 #define EVENTLOGSIZE 65536			// maximum character size of the event log
 #define OUT_TYPE_FLAC 0
@@ -51,25 +52,27 @@ const int LAME_CBRBITRATES[] = {
 #define FAIL_LAME_ID3TAG			13
 #define FAIL_LAME_ENCODE			14
 #define FAIL_LAME_CLOSE				15
+#define FAIL_LAME_BITDEPTH			16
 
 // failure messages for failure codes
-const WCHAR ErrMessage[][50] = {
-	L"OK\r\n",											//0
-	L"Error during opening the file\r\n",				//1
-	L"Invalid WAVE file header\r\n",					//2
-	L"Unsupported WAVE file compression format\r\n",	//3
-	L"Only 16 and 24 bit files are supported\r\n",		//4
-	L"Invalid FLAC file header\r\n",					//5
-	L"Error during allocating libFLAC encoder\r\n",		//6
-	L"Encoding failed\r\n",								//7
-	L"Decoding failed\r\n",								//8
-	L"Registry open failed\r\n",						//9
-	L"Registry writing failed\r\n",						//10
-	L"Registry reading failed\r\n",						//11
-	L"Error during libmp3lame initialization\r\n",		//12
-	L"Error during libmp3lame writing ID3TAG\r\n",		//13
-	L"Error during libmp3lame encoding\r\n",			//14
-	L"Error during libmp3lame closing\r\n" };			//15
+const WCHAR ErrMessage[][60] = {
+	L"OK\r\n",													//0
+	L"Error during opening the file\r\n",						//1
+	L"Invalid WAVE file header\r\n",							//2
+	L"Unsupported WAVE file compression format\r\n",			//3
+	L"Only 16 and 24 bit files are supported\r\n",				//4
+	L"libflac: Invalid FLAC file header\r\n",					//5
+	L"libflac: Error during allocating libFLAC encoder\r\n",	//6
+	L"libflac: Encoding failed\r\n",							//7
+	L"libflac: Decoding failed\r\n",							//8
+	L"registry: Open failed\r\n",								//9
+	L"registry: Writing failed\r\n",							//10
+	L"registry: Reading failed\r\n",							//11
+	L"libmp3lame: Error during initialization\r\n",				//12
+	L"libmp3lame: Error during writing ID3TAG\r\n",				//13
+	L"libmp3lame: Error during encoding\r\n",					//14
+	L"libmp3lame: Error during closing\r\n",					//15
+	L"libmp3lame: not supported bit depth\r\n" };				//16
 
 // global encoder settings
 struct sEncoderSettings
@@ -99,14 +102,14 @@ struct sWAVEheader
 struct sFMTheader
 {
 	char ChunkID[4];		// "fmt "
-	int ChunkSize;			// 16, 18 or 40
+	int ChunkSize;			// 16, 18 or 40 bytes
 	short AudioFormat;
 	short NumChannels;
 	int SampleRate;
 	int ByteRate;			// SampleRate * NumChannels * BitsPerSample/8
 	short BlockAlign;		// NumChannels * BitsPerSample/8
 	short BitsPerSample;
-	short ExtensionSize;	// Size of the extension (0 or 22)
+	short ExtensionSize;	// Size of the extension (0 or 22 bytes)
 	short ValidBitsPerSample;
 	int ChannelMask;		// Speaker position mask
 	char SubFormat[16];		// GUID, including the data format code
@@ -124,6 +127,8 @@ struct sClientData
 {
 	FILE* fin;
 	FILE* fout;
+	BYTE* buffer_out;
+	//unsigned int buffer_out_size;
 	FLAC__uint64 total_samples;
 	unsigned int sample_rate;
 	unsigned int channels;

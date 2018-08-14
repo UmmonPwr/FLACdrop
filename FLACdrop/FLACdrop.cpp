@@ -2,6 +2,7 @@
 #include "FLACdrop.h"
 #include "windowing.h"
 #include "encoders.h"
+#include "io.h"
 
 #define MAX_LOADSTRING 100
 
@@ -176,6 +177,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_DESTROY:
 			delete EventLogTXT;
+			RegOut();
 			PostQuitMessage(0);
 			break;
 
