@@ -177,7 +177,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 		case WM_DESTROY:
 			delete EventLogTXT;
-			RegOut();
+			WriteSettings();	// write settings to registry at program exit
 			PostQuitMessage(0);
 			break;
 

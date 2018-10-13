@@ -1,6 +1,6 @@
 #include "stream_encoder.h"
 #include "stream_decoder.h"
-//#include "metadata.h"
+#include "metadata.h"
 
 #define READSIZE_FLAC 1048576		// size of a block to read from disk in bytes for the FLAC encoder algorithm
 #define READSIZE_MP3 8192			// size of a block to read from disk in bytes for the MP3 encoder algorithm
@@ -45,14 +45,15 @@ const int LAME_CBRBITRATES[] = {
 #define FAIL_LIBFLAC_ALLOC			6
 #define FAIL_LIBFLAC_ENCODE			7
 #define FAIL_LIBFLAC_DECODE			8
-#define FAIL_REGISTRY_OPEN			9
-#define FAIL_REGISTRY_WRITE			10
-#define FAIL_REGISTRY_READ			11
-#define FAIL_LAME_INIT				12
-#define FAIL_LAME_ID3TAG			13
-#define FAIL_LAME_ENCODE			14
-#define FAIL_LAME_CLOSE				15
-#define FAIL_LAME_BITDEPTH			16
+#define FAIL_LIBFLAC_METADATA		9
+#define FAIL_REGISTRY_OPEN			10
+#define FAIL_REGISTRY_WRITE			11
+#define FAIL_REGISTRY_READ			12
+#define FAIL_LAME_INIT				13
+#define FAIL_LAME_ID3TAG			14
+#define FAIL_LAME_ENCODE			15
+#define FAIL_LAME_CLOSE				16
+#define FAIL_LAME_BITDEPTH			17
 
 // failure messages for failure codes
 const WCHAR ErrMessage[][60] = {
@@ -65,14 +66,15 @@ const WCHAR ErrMessage[][60] = {
 	L"libflac: Error during allocating libFLAC encoder\r\n",	//6
 	L"libflac: Encoding failed\r\n",							//7
 	L"libflac: Decoding failed\r\n",							//8
-	L"registry: Open failed\r\n",								//9
-	L"registry: Writing failed\r\n",							//10
-	L"registry: Reading failed\r\n",							//11
-	L"libmp3lame: Error during initialization\r\n",				//12
-	L"libmp3lame: Error during writing ID3TAG\r\n",				//13
-	L"libmp3lame: Error during encoding\r\n",					//14
-	L"libmp3lame: Error during closing\r\n",					//15
-	L"libmp3lame: not supported bit depth\r\n" };				//16
+	L"libflac: Failed to decode metadata",						//9
+	L"registry: Open failed\r\n",								//10
+	L"registry: Writing failed\r\n",							//11
+	L"registry: Reading failed\r\n",							//12
+	L"libmp3lame: Error during initialization\r\n",				//13
+	L"libmp3lame: Error during writing ID3TAG\r\n",				//14
+	L"libmp3lame: Error during encoding\r\n",					//15
+	L"libmp3lame: Error during closing\r\n",					//16
+	L"libmp3lame: not supported bit depth\r\n" };				//17
 
 // global encoder settings
 struct sEncoderSettings

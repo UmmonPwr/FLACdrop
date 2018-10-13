@@ -8,7 +8,7 @@ extern sEncoderSettings EncSettings;
 //
 //  PURPOSE: Writes the settings to the registry
 //
-int RegOut()
+int WriteSettings()
 {
 	HKEY hKey;
 	DWORD err, temp;
@@ -94,7 +94,7 @@ int RegOut()
 //
 //  PURPOSE:	Reads the settings from the registry
 //
-int RegIn()
+int ReadSettings()
 {
 	HKEY hKey;
 	DWORD cb, type, err, temp;

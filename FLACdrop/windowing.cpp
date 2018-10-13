@@ -53,7 +53,7 @@ INT_PTR CALLBACK Settings(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 	HWND hDlgThreads = GetDlgItem(hDlg, IDC_THREADS);
 	HWND hDlgThreadsView = GetDlgItem(hDlg, IDC_VIEW_THREADS_NUMBER);
 	TCHAR A[16];
-	int result;
+	LRESULT result;
 
 	switch (message)
 	{
@@ -210,7 +210,6 @@ INT_PTR CALLBACK MainForm(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
 	UNREFERENCED_PARAMETER(lParam);
 
-	//HWND hDlgText = GetDlgItem(hDlg, IDC_MESSAGES);
 	static sUIParameters UIParameters;
 	int result;
 
@@ -230,19 +229,23 @@ INT_PTR CALLBACK MainForm(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 			UIParameters.text = GetDlgItem(hDlg, IDC_MESSAGES);
 			SendMessage(UIParameters.text, WM_SETTEXT, 0, (LPARAM)L"Waiting for audio files to be dropped...");
 			
-			result = RegIn();			// load the encoder settings
+			result = ReadSettings();			// load the encoder settings from registry
 			if (result != 0) SendMessage(UIParameters.text, WM_SETTEXT, 0, (LPARAM)ErrMessage[result]);
 
 			// setup output type radio buttons
 			switch (EncSettings.OUT_Type)
 			{
-			case OUT_TYPE_FLAC:
-				CheckRadioButton(hDlg, IDC_RADIO_OUT_FLAC, IDC_RADIO_OUT_MP3, IDC_RADIO_OUT_FLAC);
-				break;
+				case OUT_TYPE_FLAC:
+					CheckRadioButton(hDlg, IDC_RADIO_OUT_FLAC, IDC_RADIO_OUT_WAV, IDC_RADIO_OUT_FLAC);
+					break;
 
-			case OUT_TYPE_MP3:
-				CheckRadioButton(hDlg, IDC_RADIO_OUT_FLAC, IDC_RADIO_OUT_MP3, IDC_RADIO_OUT_MP3);
-				break;
+				case OUT_TYPE_MP3:
+					CheckRadioButton(hDlg, IDC_RADIO_OUT_FLAC, IDC_RADIO_OUT_WAV, IDC_RADIO_OUT_MP3);
+					break;
+
+				case OUT_TYPE_WAV:
+					CheckRadioButton(hDlg, IDC_RADIO_OUT_FLAC, IDC_RADIO_OUT_WAV, IDC_RADIO_OUT_WAV);
+					break;
 			}
 
 			return (INT_PTR)TRUE;
@@ -265,8 +268,7 @@ INT_PTR CALLBACK MainForm(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 				case BN_CLICKED:
 					if (IsDlgButtonChecked(hDlg, IDC_RADIO_OUT_FLAC) == BST_CHECKED) EncSettings.OUT_Type = OUT_TYPE_FLAC;
 					if (IsDlgButtonChecked(hDlg, IDC_RADIO_OUT_MP3) == BST_CHECKED) EncSettings.OUT_Type = OUT_TYPE_MP3;
-					//result = RegOut();
-					//if (result != 0) SendMessage(hDlgText, WM_SETTEXT, 0, (LPARAM)ErrMessage[result]);
+					if (IsDlgButtonChecked(hDlg, IDC_RADIO_OUT_WAV) == BST_CHECKED) EncSettings.OUT_Type = OUT_TYPE_WAV;
 					break;
 			}
 			break;

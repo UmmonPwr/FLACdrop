@@ -1,2 +1,2 @@
-int RegOut();
-int RegIn();
+int WriteSettings();
+int ReadSettings();
