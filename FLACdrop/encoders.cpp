@@ -241,13 +241,13 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	// check if the WAVE file has 16 bit resolution, MP3 stream does not support 24 bit
 	switch (FMTheader.BitsPerSample)
 	{
-	case 16:
-		break;
-	case 24:
-	default:
-		fclose(fin);
-		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_LAME_BITDEPTH, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+		case 16:
+			break;
+		case 24:
+		default:
+			fclose(fin);
+			myparams->ThreadInUse = false;
+			ExitEncThread(FAIL_LAME_ONLY_16_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
 	// search for the data chunk
@@ -511,7 +511,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 		default:
 			fclose(fin);
 			myparams->ThreadInUse = false;
-			ExitEncThread(FAIL_INPUT_NOT_16_24_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
+			ExitEncThread(FAIL_LIBFLAC_ONLY_16_24_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 
 	// search for the data chunk
@@ -720,7 +720,7 @@ DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
 			default:
 				fclose(fin);
 				myparams->ThreadInUse = false;
-				ExitEncThread(FAIL_INPUT_NOT_16_24_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
+				ExitEncThread(FAIL_LIBFLAC_ONLY_16_24_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
 		}
 		if (ClientData.total_samples == 0)									// check if total_samples count is in the STREAMINFO
 		{
@@ -785,7 +785,7 @@ DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
 //
 //	FUNCTION:	Encode_FLAC2MP3(sEncodingParameters* )
 //
-//	PURPOSE:	Encode FLAC stream to MP3 stream
+//	PURPOSE:	Encode FLAC stream to MP3 stream, transfer the tags also
 //
 DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 {
@@ -807,17 +807,17 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	// setup the message area
 	SendMessage(myparams->progress, PBM_SETPOS, 0, 0);		// reset the progress bar
 
-	// allocate the FLAC decoder
+	// allocate the libFLAC decoder
 	if ((decoder = FLAC__stream_decoder_new()) == NULL)
 	{
 		myparams->ThreadInUse = false;
 		ExitEncThread(FAIL_LIBFLAC_ALLOC, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
-	// set the FLAC decoder parameters
+	// set the libFLAC decoder parameters
 	ok &= FLAC__stream_decoder_set_md5_checking(decoder, EncSettings.FLAC_MD5check);
 
-	// open the input file and give the handle to the FLAC decoder
+	// open the input file and give the handle to the libFLAC decoder
 	if ((_wfopen_s(&fin, myparams->filename, L"r+b")) != NULL)
 	{
 		myparams->ThreadInUse = false;
@@ -825,7 +825,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	}
 	ClientData.fin = fin;
 
-	// initialize FLAC decoder
+	// initialize libFLAC decoder
 	init_status = FLAC__stream_decoder_init_stream(decoder, read_callback_2WAV, seek_callback_2WAV, tell_callback_2WAV, length_callback_2WAV, eof_callback_2WAV, write_callback_2MEM/**/, metadata_callback_2WAV, error_callback_2WAV, &ClientData);
 
 	if (init_status != FLAC__STREAM_DECODER_INIT_STATUS_OK)
@@ -847,13 +847,13 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	// check if FLAC file has 16 or 24 bit resolution
 	switch (ClientData.bps)
 	{
-	case 16:
-	case 24:
-		break;
-	default:
-		fclose(fin);
-		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_INPUT_NOT_16_24_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+		case 16:
+			break;
+		case 24:
+		default:
+			fclose(fin);
+			myparams->ThreadInUse = false;
+			ExitEncThread(FAIL_LAME_ONLY_16_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
 	// check if total_samples count is in the STREAMINFO
@@ -865,14 +865,21 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	}
 
 	// get the tags from the FLAC stream
-	//FLAC__StreamMetadata_VorbisComment_Entry entry;
+	FLAC__StreamMetadata_VorbisComment_Entry commententry;
 	FLAC__Metadata_Chain *FLACchain;
 	FLAC__Metadata_Iterator *FLACchainIterator;
 	FLAC__StreamMetadata *FLACMetaData;
 	FLAC__IOCallbacks metadata_callbacks;
 	FLAC__bool MetaDataOK;
 	FLAC__MetadataType FLACMetaDataType;
+	sMetaData MetaDataTrans[MD_NUMBER];
+	int vorbiscommentoffset;
+	char *commentname, *commentvalue;
 
+	// clear the metadata transfer variables
+	for (int i = 0; i < MD_NUMBER; i++) MetaDataTrans[i].present = false;
+
+	// initialize the libFLAC metadata reader
 	// https://xiph.org/flac/api/group__flac__metadata__level2.html
 	metadata_callbacks.read = read_iocallback;
 	metadata_callbacks.write = write_iocallback;
@@ -881,7 +888,6 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	metadata_callbacks.seek = seek_iocallback;
 	metadata_callbacks.close = close_iocallback;
 
-	// initialize the FLAC metadata reader
 	FLACchain = FLAC__metadata_chain_new();
 	ok = FLAC__metadata_chain_read_with_callbacks(FLACchain, ClientData.fin, metadata_callbacks);
 	if (ok == FALSE)
@@ -902,8 +908,87 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 		FLACMetaDataType = FLAC__metadata_iterator_get_block_type(FLACchainIterator);
 		if (FLACMetaDataType == FLAC__METADATA_TYPE_VORBIS_COMMENT)
 		{
+			// copy the metadata to the transfer variables
 			// https://xiph.org/flac/api/group__flac__metadata__object.html
+			/*
+			TITLE
+				Track / Work name
+			VERSION
+				The version field may be used to differentiate multiple versions of the same track title in a single collection. (e.g.remix info)
+			ALBUM
+				The collection name to which this track belongs
+			TRACKNUMBER
+				The track number of this piece if part of a specific larger collection or album
+			ARTIST
+				The artist generally considered responsible for the work.In popular music this is usually the performing band or singer.For classical music it would be the composer.For an audio book it would be the author of the original text.
+			PERFORMER
+				The artist(s) who performed the work.In classical music this would be the conductor, orchestra, soloists.In an audio book it would be the actor who did the reading.In popular music this is typically the same as the ARTIST and is omitted.
+			COPYRIGHT
+				Copyright attribution, e.g., '2001 Nobody's Band' or '1999 Jack Moffitt'
+			LICENSE
+				License information, eg, 'All Rights Reserved', 'Any Use Permitted', a URL to a license such as a Creative Commons license("www.creativecommons.org/blahblah/license.html") or the EFF Open Audio License('distributed under the terms of the Open Audio License. see http://www.eff.org/IP/Open_licenses/eff_oal.html for details'), etc.
+			ORGANIZATION
+				Name of the organization producing the track(i.e.the 'record label')
+			DESCRIPTION
+				A short text description of the contents
+			GENRE
+				A short text indication of music genre
+			DATE
+				Date the track was recorded
+			LOCATION
+				Location where track was recorded
+			CONTACT
+				Contact information for the creators or distributors of the track.This could be a URL, an email address, the physical address of the producing label.
+			ISRC
+				ISRC number for the track; see the ISRC intro page for more information on ISRC numbers.
+			*/
+			vorbiscommentoffset = FLAC__metadata_object_vorbiscomment_find_entry_from(FLACMetaData, 0, "ALBUM");
+			if (vorbiscommentoffset != -1)
+			{
+				commententry = FLACMetaData->data.vorbis_comment.comments[vorbiscommentoffset];
+				if (FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(commententry, &commentname, &commentvalue) == TRUE)
+				{
+					MetaDataTrans[MD_ALBUM].text = new char[MAXMETADATA];
+					MetaDataTrans[MD_ALBUM].present = true;
+					strcpy_s(MetaDataTrans[MD_ALBUM].text, MAXMETADATA, commentvalue);
+				}
+			}
+			
+			vorbiscommentoffset = FLAC__metadata_object_vorbiscomment_find_entry_from(FLACMetaData, 0, "ARTIST");
+			if (vorbiscommentoffset != -1)
+			{
+				commententry = FLACMetaData->data.vorbis_comment.comments[vorbiscommentoffset];
+				if (FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(commententry, &commentname, &commentvalue) == TRUE)
+				{
+					MetaDataTrans[MD_ARTIST].text = new char[MAXMETADATA];
+					MetaDataTrans[MD_ARTIST].present = true;
+					strcpy_s(MetaDataTrans[MD_ARTIST].text, MAXMETADATA, commentvalue);
+				}
+			}
+			
+			vorbiscommentoffset = FLAC__metadata_object_vorbiscomment_find_entry_from(FLACMetaData, 0, "TITLE");
+			if (vorbiscommentoffset != -1)
+			{
+				commententry = FLACMetaData->data.vorbis_comment.comments[vorbiscommentoffset];
+				if (FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(commententry, &commentname, &commentvalue) == TRUE)
+				{
+					MetaDataTrans[MD_TITLE].text = new char[MAXMETADATA];
+					MetaDataTrans[MD_TITLE].present = true;
+					strcpy_s(MetaDataTrans[MD_TITLE].text, MAXMETADATA, commentvalue);
+				}
+			}
 
+			vorbiscommentoffset = FLAC__metadata_object_vorbiscomment_find_entry_from(FLACMetaData, 0, "TRACKNUMBER");
+			if (vorbiscommentoffset != -1)
+			{
+				commententry = FLACMetaData->data.vorbis_comment.comments[vorbiscommentoffset];
+				if (FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(commententry, &commentname, &commentvalue) == TRUE)
+				{
+					MetaDataTrans[MD_TRACKNUMBER].text = new char[MAXMETADATA];
+					MetaDataTrans[MD_TRACKNUMBER].present = true;
+					strcpy_s(MetaDataTrans[MD_TRACKNUMBER].text, MAXMETADATA, commentvalue);
+				}
+			}
 		}
 
 		MetaDataOK = FLAC__metadata_iterator_next(FLACchainIterator);
@@ -912,7 +997,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	FLAC__metadata_chain_delete(FLACchain);
 	_fseeki64(ClientData.fin, 0, SEEK_SET);	// go back to the beginning of the FLAC stream, otherwise not the correct audio stream will be read for the encoding
 	
-	// initialize lame encoder
+	// initialize libmp3lame encoder
 	lame_gfp = lame_init();
 	if (lame_gfp == NULL)
 	{
@@ -941,12 +1026,12 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	// turn off automatic writing of ID3 tag data into mp3 stream we have to call it before 'lame_init_params', because that function would spit out ID3v2 tag data.
 	lame_set_write_id3tag_automatic(lame_gfp, 0);
 
-	// set lame encoder parameters for CBR encoding
+	// set libmp3lame encoder parameters for CBR encoding
 	lame_set_num_channels(lame_gfp, ClientData.channels);
 	lame_set_in_samplerate(lame_gfp, ClientData.sample_rate);
 	lame_set_brate(lame_gfp, LAME_CBRBITRATES[EncSettings.LAME_CBRBitrate]);	// load bitrate setting from LUT
 
-	// set lame encoder parameters for VBR encoding
+	// set libmp3lame encoder parameters for VBR encoding
 	switch (EncSettings.LAME_EncodingMode)
 	{
 		case 0:	// CBR
@@ -959,7 +1044,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 
 	lame_set_VBR_q(lame_gfp, EncSettings.LAME_VBRQuality); // VBR quality level.  0=highest  9=lowest
 
-	// now that all the options are set, lame needs to analyze them and set some more internal options and check for problems
+	// now that all the options are set, libmp3lame needs to analyze them and set some more internal options and check for problems
 	if (lame_init_params(lame_gfp) != 0)
 	{
 		fclose(fin);
@@ -994,6 +1079,9 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 		}
 	}
 	if (LAME_FLUSH == true) fflush(fout);*/
+	
+	// free up the metadata transfer block
+	for (int i = 0; i < MD_NUMBER; i++) if (MetaDataTrans[i].present == true) delete[] MetaDataTrans[i].text;
 
 	// allocate memory buffers
 	buffer_raw = new BYTE[SIZE_RAW_BUFFER];
@@ -1017,7 +1105,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 		delete[]OutFileName;
 
 		SendMessage(myparams->progress, PBM_SETRANGE, 0, MAKELONG(0, ClientData.total_samples / ClientData.blocksize));	// set up the progress bar boundaries, block size is around 4k depending on resolution
-		// loop the FLAC decoder until it reaches the end of the input file or returns an error
+		// loop the libFLAC decoder until it reaches the end of the input file or returns an error
 		do
 		{
 			ok = FLAC__stream_decoder_process_single(decoder);
@@ -1061,7 +1149,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 		}
 	}
 
-	// close the FLAC decoder
+	// close the libFLAC decoder
 	state = FLAC__stream_decoder_get_state(decoder);
 	switch (state)
 	{
@@ -1076,7 +1164,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	ok &= FLAC__stream_decoder_finish(decoder);
 	FLAC__stream_decoder_delete(decoder);
 
-	// close the lame mp3 encoder
+	// close the libmp3lame encoder
 	// may return one more mp3 frame
 	if (ok)
 	{

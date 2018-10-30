@@ -7,11 +7,30 @@
 #define SIZE_RAW_BUFFER 32768		// size of raw audio data buffer for transcoding
 #define MAXFILENAMELENGTH 1024		// maximum size of a file name with full path
 #define EVENTLOGSIZE 65536			// maximum character size of the event log
+#define MAXMETADATA 1024			// maximum character size of metadata string
 #define OUT_TYPE_FLAC 0
 #define OUT_TYPE_MP3 1
 #define OUT_TYPE_WAV 2
 
-// default values of system variables
+// positions of the metadata variables in the transfer structure
+#define MD_NUMBER		15
+#define MD_TITLE		0
+#define MD_VERSION		1
+#define MD_ALBUM		2
+#define MD_TRACKNUMBER	3
+#define MD_ARTIST		4
+#define MD_PERFORMER	5
+#define MD_COPYRIGHT	6
+#define MD_LICENSE		7
+#define MD_ORGANIZATION	8
+#define MD_DESCRIPTION	9
+#define MD_GENRE		10
+#define MD_DATE			11
+#define MD_LOCATION		12
+#define MD_CONTACT		13
+#define MD_ISRC			14
+
+// default values of system variables of libflac, libmp3lame
 #define FLAC_ENCODINGQUALITY 6	// 1..8
 #define FLAC_MAXENCODINGQUALITY 8
 #define FLAC_VERIFY false
@@ -28,7 +47,7 @@
 #define OUT_THREADS 1			// number of batch processing threads
 #define MAX_THREADS 8			// maximum number of batch processing threads
 
-// LAME encoding bitrates
+// libmp3lame encoding bitrates
 const TCHAR LAME_CBRBITRATES_TEXT[][4] = {
 	TEXT("48"), TEXT("64"), TEXT("80"), TEXT("96"), TEXT("112"), TEXT("128"), TEXT("160"), TEXT("192"), TEXT("224"), TEXT("256"), TEXT("320") };
 const int LAME_CBRBITRATES[] = {
@@ -40,7 +59,7 @@ const int LAME_CBRBITRATES[] = {
 #define FAIL_FILE_OPEN				1
 #define FAIL_WAV_BAD_HEADER			2
 #define FAIL_WAV_UNSUPPORTED		3
-#define FAIL_INPUT_NOT_16_24_BIT	4
+#define FAIL_LIBFLAC_ONLY_16_24_BIT	4
 #define FAIL_LIBFLAC_BAD_HEADER		5
 #define FAIL_LIBFLAC_ALLOC			6
 #define FAIL_LIBFLAC_ENCODE			7
@@ -49,11 +68,11 @@ const int LAME_CBRBITRATES[] = {
 #define FAIL_REGISTRY_OPEN			10
 #define FAIL_REGISTRY_WRITE			11
 #define FAIL_REGISTRY_READ			12
-#define FAIL_LAME_INIT				13
-#define FAIL_LAME_ID3TAG			14
-#define FAIL_LAME_ENCODE			15
-#define FAIL_LAME_CLOSE				16
-#define FAIL_LAME_BITDEPTH			17
+#define FAIL_LAME_ONLY_16_BIT		13
+#define FAIL_LAME_INIT				14
+#define FAIL_LAME_ID3TAG			15
+#define FAIL_LAME_ENCODE			16
+#define FAIL_LAME_CLOSE				17
 
 // failure messages for failure codes
 const WCHAR ErrMessage[][60] = {
@@ -61,7 +80,7 @@ const WCHAR ErrMessage[][60] = {
 	L"Error during opening the file\r\n",						//1
 	L"Invalid WAVE file header\r\n",							//2
 	L"Unsupported WAVE file compression format\r\n",			//3
-	L"Only 16 and 24 bit files are supported\r\n",				//4
+	L"libflac: Only 16 and 24 bit files are supported\r\n",		//4
 	L"libflac: Invalid FLAC file header\r\n",					//5
 	L"libflac: Error during allocating libFLAC encoder\r\n",	//6
 	L"libflac: Encoding failed\r\n",							//7
@@ -70,11 +89,11 @@ const WCHAR ErrMessage[][60] = {
 	L"registry: Open failed\r\n",								//10
 	L"registry: Writing failed\r\n",							//11
 	L"registry: Reading failed\r\n",							//12
-	L"libmp3lame: Error during initialization\r\n",				//13
-	L"libmp3lame: Error during writing ID3TAG\r\n",				//14
-	L"libmp3lame: Error during encoding\r\n",					//15
-	L"libmp3lame: Error during closing\r\n",					//16
-	L"libmp3lame: not supported bit depth\r\n" };				//17
+	L"libmp3lame: Only 16 bit files are supported",				//13
+	L"libmp3lame: Error during initialization\r\n",				//14
+	L"libmp3lame: Error during writing ID3TAG\r\n",				//15
+	L"libmp3lame: Error during encoding\r\n",					//16
+	L"libmp3lame: Error during closing\r\n"};					//17
 
 // global encoder settings
 struct sEncoderSettings
@@ -157,6 +176,13 @@ struct sUIParameters
 	HWND progresstotal;			// handle for the total progress bar
 	HWND progress[MAX_THREADS];	// handle for each thread's progress bar
 	HWND text;					// handle for the static text
+};
+
+// structure for metadata transfer
+struct sMetaData
+{
+	char *text;
+	bool present;
 };
 
 // encoder algorithms
