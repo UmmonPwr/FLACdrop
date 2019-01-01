@@ -161,15 +161,15 @@
     <None Include="MP3_logo.bmp" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="..\..\flac-1.3.1\include\FLAC\all.h" />
-    <ClInclude Include="..\..\flac-1.3.1\include\FLAC\assert.h" />
-    <ClInclude Include="..\..\flac-1.3.1\include\FLAC\callback.h" />
-    <ClInclude Include="..\..\flac-1.3.1\include\FLAC\export.h" />
-    <ClInclude Include="..\..\flac-1.3.1\include\FLAC\format.h" />
-    <ClInclude Include="..\..\flac-1.3.1\include\FLAC\metadata.h" />
-    <ClInclude Include="..\..\flac-1.3.1\include\FLAC\ordinals.h" />
-    <ClInclude Include="..\..\flac-1.3.1\include\FLAC\stream_decoder.h" />
-    <ClInclude Include="..\..\flac-1.3.1\include\FLAC\stream_encoder.h" />
+    <ClInclude Include="..\libFLAC\include\FLAC\all.h" />
+    <ClInclude Include="..\libFLAC\include\FLAC\assert.h" />
+    <ClInclude Include="..\libFLAC\include\FLAC\callback.h" />
+    <ClInclude Include="..\libFLAC\include\FLAC\export.h" />
+    <ClInclude Include="..\libFLAC\include\FLAC\format.h" />
+    <ClInclude Include="..\libFLAC\include\FLAC\metadata.h" />
+    <ClInclude Include="..\libFLAC\include\FLAC\ordinals.h" />
+    <ClInclude Include="..\libFLAC\include\FLAC\stream_decoder.h" />
+    <ClInclude Include="..\libFLAC\include\FLAC\stream_encoder.h" />
     <ClInclude Include="..\libmp3lame\include\lame.h" />
     <ClInclude Include="encoders.h" />
     <ClInclude Include="FLACdrop.h" />

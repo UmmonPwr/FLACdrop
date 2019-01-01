@@ -966,6 +966,42 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 				}
 			}
 			
+			vorbiscommentoffset = FLAC__metadata_object_vorbiscomment_find_entry_from(FLACMetaData, 0, "DATE");
+			if (vorbiscommentoffset != -1)
+			{
+				commententry = FLACMetaData->data.vorbis_comment.comments[vorbiscommentoffset];
+				if (FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(commententry, &commentname, &commentvalue) == TRUE)
+				{
+					MetaDataTrans[MD_DATE].text = new char[MAXMETADATA];
+					MetaDataTrans[MD_DATE].present = true;
+					strcpy_s(MetaDataTrans[MD_DATE].text, MAXMETADATA, commentvalue);
+				}
+			}
+
+			vorbiscommentoffset = FLAC__metadata_object_vorbiscomment_find_entry_from(FLACMetaData, 0, "DISCNUMBER");
+			if (vorbiscommentoffset != -1)
+			{
+				commententry = FLACMetaData->data.vorbis_comment.comments[vorbiscommentoffset];
+				if (FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(commententry, &commentname, &commentvalue) == TRUE)
+				{
+					MetaDataTrans[MD_DISCNUMBER].text = new char[MAXMETADATA];
+					MetaDataTrans[MD_DISCNUMBER].present = true;
+					strcpy_s(MetaDataTrans[MD_DISCNUMBER].text, MAXMETADATA, commentvalue);
+				}
+			}
+
+			vorbiscommentoffset = FLAC__metadata_object_vorbiscomment_find_entry_from(FLACMetaData, 0, "GENRE");
+			if (vorbiscommentoffset != -1)
+			{
+				commententry = FLACMetaData->data.vorbis_comment.comments[vorbiscommentoffset];
+				if (FLAC__metadata_object_vorbiscomment_entry_to_name_value_pair(commententry, &commentname, &commentvalue) == TRUE)
+				{
+					MetaDataTrans[MD_GENRE].text = new char[MAXMETADATA];
+					MetaDataTrans[MD_GENRE].present = true;
+					strcpy_s(MetaDataTrans[MD_GENRE].text, MAXMETADATA, commentvalue);
+				}
+			}
+
 			vorbiscommentoffset = FLAC__metadata_object_vorbiscomment_find_entry_from(FLACMetaData, 0, "TITLE");
 			if (vorbiscommentoffset != -1)
 			{
@@ -1052,37 +1088,6 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 		ExitEncThread(FAIL_LAME_INIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
-	// move the tags from the FLAC stream to the MP3 stream
-	/*size_t  id3v2_size;
-	unsigned char *id3v2tag;
-
-	id3v2_size = lame_get_id3v2_tag(lame_gfp, 0, 0);
-	if (id3v2_size > 0)
-	{
-		id3v2tag = new unsigned char[id3v2_size];
-		if (id3v2tag != 0)
-		{
-			imp3 = lame_get_id3v2_tag(lame_gfp, id3v2tag, id3v2_size);
-			owrite = (int) fwrite(id3v2tag, 1, imp3, fout);
-			delete []id3v2tag;
-			if (owrite != imp3) return FAIL_LAME_ID3TAG;
-		}
-	}
-	else
-	{
-		unsigned char* id3v2tag = getOldTag(gf);
-		id3v2_size = sizeOfOldTag(gf);
-		if ( id3v2_size > 0 )
-		{
-			size_t owrite = fwrite(id3v2tag, 1, id3v2_size, fout);
-			if (owrite != id3v2_size) return FAIL_LAME_ID3TAG;
-		}
-	}
-	if (LAME_FLUSH == true) fflush(fout);*/
-	
-	// free up the metadata transfer block
-	for (int i = 0; i < MD_NUMBER; i++) if (MetaDataTrans[i].present == true) delete[] MetaDataTrans[i].text;
-
 	// allocate memory buffers
 	buffer_raw = new BYTE[SIZE_RAW_BUFFER];
 	buffer_mp3 = new BYTE[LAME_MAXMP3BUFFER];
@@ -1103,6 +1108,42 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 			ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 		}
 		delete[]OutFileName;
+
+		// move the tags from the FLAC stream to the MP3 stream
+		size_t  id3v2_size;
+		unsigned char *id3v2tag;
+
+		// switch on ID3 v2 tags in the MP3 stream
+		id3tag_init(lame_gfp);
+		id3tag_v2_only(lame_gfp);
+
+		// add the tags
+		if (MetaDataTrans[MD_ALBUM].present == true) id3tag_set_album(lame_gfp, MetaDataTrans[MD_ALBUM].text);
+		if (MetaDataTrans[MD_ARTIST].present == true) id3tag_set_artist(lame_gfp, MetaDataTrans[MD_ARTIST].text);
+		if (MetaDataTrans[MD_DATE].present == true) id3tag_set_year(lame_gfp, MetaDataTrans[MD_DATE].text);
+		if (MetaDataTrans[MD_GENRE].present == true) id3tag_set_genre(lame_gfp, MetaDataTrans[MD_GENRE].text);
+		if (MetaDataTrans[MD_TITLE].present == true) id3tag_set_title(lame_gfp, MetaDataTrans[MD_TITLE].text);
+		if (MetaDataTrans[MD_TRACKNUMBER].present == true) id3tag_set_track(lame_gfp, MetaDataTrans[MD_TRACKNUMBER].text);
+
+		id3v2_size = lame_get_id3v2_tag(lame_gfp, 0, 0);
+		id3v2tag = new unsigned char[id3v2_size];
+		if (id3v2tag != 0)
+		{
+			imp3 = lame_get_id3v2_tag(lame_gfp, id3v2tag, id3v2_size);
+			owrite = (int)fwrite(id3v2tag, 1, imp3, fout);
+			delete[]id3v2tag;
+			if (owrite != imp3)
+			{
+				fclose(fin);
+				for (int i = 0; i < MD_NUMBER; i++) if (MetaDataTrans[i].present == true) delete[] MetaDataTrans[i].text; // free up the metadata transfer block
+				myparams->ThreadInUse = false;
+				ExitEncThread(FAIL_LAME_ID3TAG, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+			}
+		}
+		if (LAME_FLUSH == true) fflush(fout);
+
+		// free up the metadata transfer block
+		for (int i = 0; i < MD_NUMBER; i++) if (MetaDataTrans[i].present == true) delete[] MetaDataTrans[i].text;
 
 		SendMessage(myparams->progress, PBM_SETRANGE, 0, MAKELONG(0, ClientData.total_samples / ClientData.blocksize));	// set up the progress bar boundaries, block size is around 4k depending on resolution
 		// loop the libFLAC decoder until it reaches the end of the input file or returns an error

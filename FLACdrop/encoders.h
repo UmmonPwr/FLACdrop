@@ -13,22 +13,23 @@
 #define OUT_TYPE_WAV 2
 
 // positions of the metadata variables in the transfer structure
-#define MD_NUMBER		15
+#define MD_NUMBER		16			// number of metadata fields
 #define MD_TITLE		0
 #define MD_VERSION		1
 #define MD_ALBUM		2
 #define MD_TRACKNUMBER	3
-#define MD_ARTIST		4
-#define MD_PERFORMER	5
-#define MD_COPYRIGHT	6
-#define MD_LICENSE		7
-#define MD_ORGANIZATION	8
-#define MD_DESCRIPTION	9
-#define MD_GENRE		10
-#define MD_DATE			11
-#define MD_LOCATION		12
-#define MD_CONTACT		13
-#define MD_ISRC			14
+#define MD_DISCNUMBER	4
+#define MD_ARTIST		5
+#define MD_PERFORMER	6
+#define MD_COPYRIGHT	7
+#define MD_LICENSE		8
+#define MD_ORGANIZATION	9
+#define MD_DESCRIPTION	10
+#define MD_GENRE		11
+#define MD_DATE			12
+#define MD_LOCATION		13
+#define MD_CONTACT		14
+#define MD_ISRC			15
 
 // default values of system variables of libflac, libmp3lame
 #define FLAC_ENCODINGQUALITY 6	// 1..8
