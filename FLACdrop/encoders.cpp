@@ -223,7 +223,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	}
 	fseek(fin, -8, SEEK_CUR);
 	// read the complete wave file header according to its actual chunk size (16, 18 or 40 byte)
-	if (fread(&FMTheader, 1, DATAheader.ChunkSize + 8, fin) != DATAheader.ChunkSize + 8)
+	if (fread(&FMTheader, 1, (size_t)DATAheader.ChunkSize + 8, fin) != (size_t)DATAheader.ChunkSize + 8)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
@@ -365,7 +365,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	while(ok && left)
 	{
 		need = (left>READSIZE_MP3? (size_t)READSIZE_MP3 : (size_t)left);	// calculate the number of samples to read
-		if (fread(buffer_wav, FMTheader.NumChannels * (FMTheader.BitsPerSample/8), need, fin) != need)
+		if (fread(buffer_wav, (size_t)FMTheader.NumChannels * (FMTheader.BitsPerSample/8), need, fin) != need)
 		{
 			// error during reading from WAVE file
 			ok = false;
@@ -487,7 +487,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	}
 	fseek(fin, -8, SEEK_CUR);
 	// read the complete wave file header according to its actual chunk size (16, 18 or 40 byte)
-	if(fread(&FMTheader, 1, DATAheader.ChunkSize+8, fin) != DATAheader.ChunkSize+8)
+	if(fread(&FMTheader, 1, (size_t)DATAheader.ChunkSize+8, fin) != (size_t)DATAheader.ChunkSize+8)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
@@ -593,7 +593,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 		while(ok && left)
 		{
 			need = (left>READSIZE_FLAC? (size_t)READSIZE_FLAC : (size_t)left);	// calculate the number of samples to read
-			if(fread(buffer_wav, FMTheader.NumChannels * (FMTheader.BitsPerSample/8), need, fin) != need)
+			if(fread(buffer_wav, (size_t)FMTheader.NumChannels * (FMTheader.BitsPerSample/8), need, fin) != need)
 			{
 				// error during reading from WAVE file
 				ok = false;
@@ -662,6 +662,7 @@ DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
 	sEncodingParameters *myparams = (sEncodingParameters*)params;
 
 	FLAC__bool ok = TRUE;
+	FLAC__bool MD5_ok;
 	FLAC__StreamDecoder *decoder = 0;
 	FLAC__StreamDecoderInitStatus init_status;
 	FLAC__StreamDecoderState state;
@@ -770,7 +771,7 @@ DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
 		default:
 			break;
 	}
-	ok &= FLAC__stream_decoder_finish(decoder);
+	MD5_ok = FLAC__stream_decoder_finish(decoder);
 	FLAC__stream_decoder_delete(decoder);
 	fclose(fout);
 	fclose(fin);
@@ -796,6 +797,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	sClientData ClientData;
 
 	FLAC__bool ok = TRUE;
+	FLAC__bool MD5_ok;
 	FLAC__StreamDecoder *decoder = 0;
 	FLAC__StreamDecoderInitStatus init_status;
 	FLAC__StreamDecoderState state;
@@ -903,7 +905,6 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	do
 	{
 		FLACMetaData = FLAC__metadata_iterator_get_block(FLACchainIterator);
-		// FLAC__Metadata_ChainStatus 	FLAC__metadata_chain_status (FLAC__Metadata_Chain *chain)
 
 		FLACMetaDataType = FLAC__metadata_iterator_get_block_type(FLACchainIterator);
 		if (FLACMetaDataType == FLAC__METADATA_TYPE_VORBIS_COMMENT)
@@ -1124,6 +1125,8 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 		if (MetaDataTrans[MD_GENRE].present == true) id3tag_set_genre(lame_gfp, MetaDataTrans[MD_GENRE].text);
 		if (MetaDataTrans[MD_TITLE].present == true) id3tag_set_title(lame_gfp, MetaDataTrans[MD_TITLE].text);
 		if (MetaDataTrans[MD_TRACKNUMBER].present == true) id3tag_set_track(lame_gfp, MetaDataTrans[MD_TRACKNUMBER].text);
+		// http://id3.org/id3v2.3.0#Text_information_frames
+		//if (MetaDataTrans[MD_DISCNUMBER].present == true) id3tag_set_textinfo_latin1(lame_gfp, "TPOS", MetaDataTrans[MD_DISCNUMBER].text);
 
 		id3v2_size = lame_get_id3v2_tag(lame_gfp, 0, 0);
 		id3v2tag = new unsigned char[id3v2_size];
@@ -1202,7 +1205,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 		default:
 			break;
 	}
-	ok &= FLAC__stream_decoder_finish(decoder);
+	MD5_ok = FLAC__stream_decoder_finish(decoder);
 	FLAC__stream_decoder_delete(decoder);
 
 	// close the libmp3lame encoder
