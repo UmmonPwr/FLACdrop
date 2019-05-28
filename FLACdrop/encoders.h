@@ -32,21 +32,21 @@
 #define MD_ISRC			15
 
 // default values of system variables of libflac, libmp3lame
-#define FLAC_ENCODINGQUALITY 6	// 1..8
+#define FLAC_ENCODINGQUALITY 6		// 1..8
 #define FLAC_MAXENCODINGQUALITY 8
 #define FLAC_VERIFY false
 #define FLAC_MD5CHECK true
 #define LAME_FLUSH true
 #define LAME_NOGAP false
 #define LAME_CBRBITRATE 10
-#define LAME_INTERNALQUALITY 2	// 0..9
-#define LAME_MAXINTERNALQUALITY 9
-#define LAME_VBRQUALITY 1		// 0..9
+#define LAME_INTERNALQUALITY 2		// 0..9
+#define LAME_MAXINTERNALQUALITY 9	// 0..9
+#define LAME_VBRQUALITY 1			// 0..9
 #define LAME_MAXVBRQUALITY 9
-#define LAME_ENCTYPE 0			// 0: CBR; 1: VBR
-#define OUT_TYPE 0				// according to the "OUT_TYPE_*" definitions
-#define OUT_THREADS 1			// number of batch processing threads
-#define MAX_THREADS 8			// maximum number of batch processing threads
+#define LAME_ENCTYPE 0				// 0: CBR; 1: VBR
+#define OUT_TYPE 0					// according to the "OUT_TYPE_*" definitions
+#define OUT_THREADS 1				// number of batch processing threads
+#define MAX_THREADS 8				// maximum number of batch processing threads
 
 // libmp3lame encoding bitrates
 const TCHAR LAME_CBRBITRATES_TEXT[][4] = {
@@ -66,35 +66,37 @@ const int LAME_CBRBITRATES[] = {
 #define FAIL_LIBFLAC_ENCODE			7
 #define FAIL_LIBFLAC_DECODE			8
 #define FAIL_LIBFLAC_METADATA		9
-#define FAIL_REGISTRY_OPEN			10
-#define FAIL_REGISTRY_WRITE			11
-#define FAIL_REGISTRY_READ			12
-#define FAIL_LAME_ONLY_16_BIT		13
-#define FAIL_LAME_INIT				14
-#define FAIL_LAME_ID3TAG			15
-#define FAIL_LAME_ENCODE			16
-#define FAIL_LAME_CLOSE				17
+#define WARN_LIBFLAC_MD5			10
+#define FAIL_REGISTRY_OPEN			11
+#define FAIL_REGISTRY_WRITE			12
+#define FAIL_REGISTRY_READ			13
+#define FAIL_LAME_ONLY_16_BIT		14
+#define FAIL_LAME_INIT				15
+#define FAIL_LAME_ID3TAG			16
+#define FAIL_LAME_ENCODE			17
+#define FAIL_LAME_CLOSE				18
 
 // failure messages for failure codes
 const WCHAR ErrMessage[][60] = {
-	L"OK\r\n",													//0
+	L"Encoding OK\r\n",											//0
 	L"Error during opening the file\r\n",						//1
-	L"Invalid WAVE file header\r\n",							//2
-	L"Unsupported WAVE file compression format\r\n",			//3
+	L"WAVE: Invalid WAVE file header\r\n",							//2
+	L"WAVE: Unsupported WAVE file compression format\r\n",			//3
 	L"libflac: Only 16 and 24 bit files are supported\r\n",		//4
 	L"libflac: Invalid FLAC file header\r\n",					//5
 	L"libflac: Error during allocating libFLAC encoder\r\n",	//6
 	L"libflac: Encoding failed\r\n",							//7
 	L"libflac: Decoding failed\r\n",							//8
 	L"libflac: Failed to decode metadata",						//9
-	L"registry: Open failed\r\n",								//10
-	L"registry: Writing failed\r\n",							//11
-	L"registry: Reading failed\r\n",							//12
-	L"libmp3lame: Only 16 bit files are supported",				//13
-	L"libmp3lame: Error during initialization\r\n",				//14
-	L"libmp3lame: Error during writing ID3TAG\r\n",				//15
-	L"libmp3lame: Error during encoding\r\n",					//16
-	L"libmp3lame: Error during closing\r\n"};					//17
+	L"libflac warning: MD5 hash mismatch",						//10
+	L"registry: Open failed\r\n",								//11
+	L"registry: Writing failed\r\n",							//12
+	L"registry: Reading failed\r\n",							//13
+	L"libmp3lame: Only 16 bit files are supported",				//14
+	L"libmp3lame: Error during initialization\r\n",				//15
+	L"libmp3lame: Error during writing ID3TAG\r\n",				//16
+	L"libmp3lame: Error during encoding\r\n",					//17
+	L"libmp3lame: Error during closing\r\n"};					//18
 
 // global encoder settings
 struct sEncoderSettings
