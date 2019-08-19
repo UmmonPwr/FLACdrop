@@ -80,8 +80,8 @@ const int LAME_CBRBITRATES[] = {
 const WCHAR ErrMessage[][60] = {
 	L"Encoding OK\r\n",											//0
 	L"Error during opening the file\r\n",						//1
-	L"WAVE: Invalid WAVE file header\r\n",							//2
-	L"WAVE: Unsupported WAVE file compression format\r\n",			//3
+	L"WAVE: Invalid WAVE file header\r\n",						//2
+	L"WAVE: Unsupported WAVE file compression format\r\n",		//3
 	L"libflac: Only 16 and 24 bit files are supported\r\n",		//4
 	L"libflac: Invalid FLAC file header\r\n",					//5
 	L"libflac: Error during allocating libFLAC encoder\r\n",	//6

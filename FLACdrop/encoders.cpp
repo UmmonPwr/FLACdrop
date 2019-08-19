@@ -886,6 +886,16 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 		ExitEncThread(FAIL_LIBFLAC_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
+	// initialize libmp3lame encoder
+	lame_gfp = lame_init();
+	if (lame_gfp == NULL)
+	{
+		fclose(fin);
+		FLAC__stream_decoder_delete(decoder);
+		myparams->ThreadInUse = false;
+		ExitEncThread(FAIL_LAME_INIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+	}
+
 	// initialize the libFLAC metadata reader
 	// https://xiph.org/flac/api/group__flac__metadata__level2.html
 	for (int i = 0; i < MD_NUMBER; i++) MetaDataTrans[i].present = false; // clear the metadata transfer variables
@@ -1039,18 +1049,14 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	} while (MetaDataOK == TRUE);
 
 	FLAC__metadata_chain_delete(FLACchain);
-	/*FLAC__bool*/ FLAC__stream_decoder_reset(decoder); // reset the FLAC decoder because the metadata reader has changed the file pointer and not the correct audio stream will be read for the decoder
-
-
-	// initialize libmp3lame encoder
-	lame_gfp = lame_init();
-	if (lame_gfp == NULL)
+	if (FLAC__stream_decoder_reset(decoder) != true) // reset the FLAC decoder because the metadata reader has changed the file pointer and not the correct audio stream will be read for the decoder
 	{
 		fclose(fin);
 		FLAC__stream_decoder_delete(decoder);
 		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_LAME_INIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+		ExitEncThread(FAIL_LIBFLAC_ALLOC, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
+	ok = FLAC__stream_decoder_process_until_end_of_metadata(decoder);	// go back to the exact position where we were before the metadata reading, otherwise there will be an additional pop sound at the beginning of the converted stream
 
 	switch (ClientData.channels)
 	{
@@ -1121,7 +1127,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 			ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 		}
 		delete[]OutFileName;
-
+		
 		// move the tags from the FLAC stream to the MP3 stream
 		size_t  id3v2_size;
 		unsigned char *id3v2tag;
@@ -1161,7 +1167,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 
 		// free up the metadata transfer block
 		for (int i = 0; i < MD_NUMBER; i++) if (MetaDataTrans[i].present == true) delete[] MetaDataTrans[i].text;
-
+		
 		SendMessage(myparams->progress, PBM_SETRANGE, 0, MAKELONG(0, ClientData.total_samples / ClientData.blocksize));	// set up the progress bar boundaries, block size is around 4k depending on resolution
 		// loop the libFLAC decoder until it reaches the end of the input file or returns an error
 		do
