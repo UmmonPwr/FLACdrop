@@ -586,7 +586,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	}
 
 	// read blocks of samples from WAVE file and feed to the encoder
-	uint32_t left, need;
+	size_t left, need, i;
 	if(ok)
 	{
 		left = (size_t)total_samples;
@@ -601,7 +601,6 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 			else
 			{
 				// convert the packed little-endian PCM samples from WAVE file into an interleaved FLAC__int32 buffer for libFLAC
-				size_t i;
 				switch(FMTheader.BitsPerSample)
 				{
 					case 16:
@@ -1049,7 +1048,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 	} while (MetaDataOK == TRUE);
 
 	FLAC__metadata_chain_delete(FLACchain);
-	if (FLAC__stream_decoder_reset(decoder) != true) // reset the FLAC decoder because the metadata reader has changed the file pointer and not the correct audio stream will be read for the decoder
+	if (FLAC__stream_decoder_reset(decoder) != TRUE) // reset the FLAC decoder because the metadata reader has changed the file pointer and not the correct audio stream will be read for the decoder
 	{
 		fclose(fin);
 		FLAC__stream_decoder_delete(decoder);
