@@ -8,6 +8,8 @@
 #define MAXFILENAMELENGTH 1024		// maximum size of a file name with full path
 #define EVENTLOGSIZE 65536			// maximum character size of the event log
 #define MAXMETADATA 1024			// maximum character size of metadata string
+
+// selectable output types
 #define OUT_TYPE_FLAC 0
 #define OUT_TYPE_MP3 1
 #define OUT_TYPE_WAV 2
@@ -31,7 +33,7 @@
 #define MD_CONTACT		14
 #define MD_ISRC			15
 
-// default values of system variables of libflac, libmp3lame
+// default values of system variables for libflac, libmp3lame
 #define FLAC_ENCODINGQUALITY 6		// 1..8
 #define FLAC_MAXENCODINGQUALITY 8
 #define FLAC_VERIFY false
@@ -45,8 +47,16 @@
 #define LAME_MAXVBRQUALITY 9
 #define LAME_ENCTYPE 0				// 0: CBR; 1: VBR
 #define OUT_TYPE 0					// according to the "OUT_TYPE_*" definitions
-#define OUT_THREADS 1				// number of batch processing threads
+#define OUT_THREADS 1				// current number of batch processing threads
 #define MAX_THREADS 8				// maximum number of batch processing threads
+
+//WAVE file audio formats
+// http://www-mmsp.ece.mcgill.ca/Documents/AudioFormats/WAVE/WAVE.html
+#define WAVE_FORMAT_PCM			0x0001	// PCM
+#define WAVE_FORMAT_IEEE_FLOAT	0x0003	// IEEE float
+#define WAVE_FORMAT_ALAW		0x0006	// 8 - bit ITU - T G.711 A - law
+#define WAVE_FORMAT_MULAW		0x0007	// 8 - bit ITU - T G.711 µ - law
+#define WAVE_FORMAT_EXTENSIBLE	0xFFFE	// Determined by SubFormat
 
 // libmp3lame encoding bitrates
 const TCHAR LAME_CBRBITRATES_TEXT[][4] = {
@@ -125,18 +135,19 @@ struct sWAVEheader
 // wave file format chunk header
 struct sFMTheader
 {
-	char ChunkID[4];		// "fmt "
-	int ChunkSize;			// 16, 18 or 40 bytes
-	short AudioFormat;
+	char ChunkID[4];				// "fmt "
+	int ChunkSize;					// 16, 18 or 40 bytes
+	unsigned short AudioFormat;		// data format code
 	short NumChannels;
 	int SampleRate;
-	int ByteRate;			// SampleRate * NumChannels * BitsPerSample/8
-	short BlockAlign;		// NumChannels * BitsPerSample/8
+	int ByteRate;					// SampleRate * NumChannels * BitsPerSample/8
+	short BlockAlign;				// NumChannels * BitsPerSample/8
 	short BitsPerSample;
-	short ExtensionSize;	// Size of the extension (0 or 22 bytes)
+	short ExtensionSize;			// Size of the extension (0 or 22 bytes)
 	short ValidBitsPerSample;
-	int ChannelMask;		// Speaker position mask
-	char SubFormat[16];		// GUID, including the data format code
+	int ChannelMask;				// Speaker position mask
+	short SubFormat_AudioFormat;	// data format code
+	char SubFormat_GUID[14];
 };
 
 // wave file data chunk header
@@ -152,7 +163,6 @@ struct sClientData
 	FILE* fin;
 	FILE* fout;
 	BYTE* buffer_out;
-	//unsigned int buffer_out_size;
 	FLAC__uint64 total_samples;
 	unsigned int sample_rate;
 	unsigned int channels;

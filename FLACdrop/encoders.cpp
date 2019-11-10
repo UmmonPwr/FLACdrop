@@ -201,7 +201,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 
-	// read wav header and check it
+	// read wav header and check if it is valid
 	if (fread(&WAVEheader, 1, 12, fin) != 12)
 	{
 		fclose(fin);
@@ -222,7 +222,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
 	}
 	fseek(fin, -8, SEEK_CUR);
-	// read the complete wave file header according to its actual chunk size (16, 18 or 40 byte)
+	// read the complete wave file header according to its actual chunk size (16, 18 or 40 byte), ChunkSize does not include the size of the header
 	if (fread(&FMTheader, 1, (size_t)DATAheader.ChunkSize + 8, fin) != (size_t)DATAheader.ChunkSize + 8)
 	{
 		fclose(fin);
@@ -231,7 +231,7 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 	}
 
 	// check if the wav file has PCM uncompressed data
-	if (FMTheader.AudioFormat != 1)
+	if (FMTheader.AudioFormat != WAVE_FORMAT_PCM)
 	{
 		fclose(fin);
 		myparams->ThreadInUse = false;
@@ -464,7 +464,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 	
-	// read wav header and check it
+	// read wav header and check if it is valid
 	if(fread(&WAVEheader, 1, 12, fin) != 12)
 	{
 		fclose(fin);
@@ -486,7 +486,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 	fseek(fin, -8, SEEK_CUR);
-	// read the complete wave file header according to its actual chunk size (16, 18 or 40 byte)
+	// read the complete wave file header according to its actual chunk size (16, 18 or 40 byte), ChunkSize does not include the size of the header
 	if(fread(&FMTheader, 1, (size_t)DATAheader.ChunkSize+8, fin) != (size_t)DATAheader.ChunkSize+8)
 	{
 		fclose(fin);
@@ -495,11 +495,26 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	}
 
 	// check if the wav file has PCM uncompressed data
-	if(FMTheader.AudioFormat != 1)
+	switch (FMTheader.AudioFormat)
 	{
-		fclose(fin);
-		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_UNSUPPORTED, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
+		case WAVE_FORMAT_PCM:
+			break;
+		case WAVE_FORMAT_EXTENSIBLE:
+			// in this case the first two byte of the SubFormat is defining the audio format
+			if (FMTheader.SubFormat_AudioFormat == WAVE_FORMAT_PCM)
+			{
+				break;
+			}
+			else
+			{
+				fclose(fin);
+				myparams->ThreadInUse = false;
+				ExitEncThread(FAIL_WAV_UNSUPPORTED, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
+			}
+		default:
+			fclose(fin);
+			myparams->ThreadInUse = false;
+			ExitEncThread(FAIL_WAV_UNSUPPORTED, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	}
 
 	// check if the WAVE file has 16 or 24 bit resolution
@@ -523,7 +538,7 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 	while (memcmp(DATAheader.ChunkID, "data", 4) );
 	fseek(fin, -DATAheader.ChunkSize, SEEK_CUR);													// go back to the beginning of the data chunk
 	total_samples = DATAheader.ChunkSize / FMTheader.NumChannels / (FMTheader.BitsPerSample / 8);	// sound data's size divided by one sample's size
-	SendMessage(myparams->progress, PBM_SETRANGE, 0, MAKELONG(0, total_samples/READSIZE_FLAC));			// set up the progress bar boundaries
+	SendMessage(myparams->progress, PBM_SETRANGE, 0, MAKELONG(0, total_samples/READSIZE_FLAC));		// set up the progress bar boundaries
    
 	// allocate the libFLAC encoder and data buffers
 	if((encoder = FLAC__stream_encoder_new()) == NULL)
@@ -1133,7 +1148,7 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 
 		// switch on ID3 v2 tags in the MP3 stream
 		id3tag_init(lame_gfp);
-		id3tag_v2_only(lame_gfp);
+		//id3tag_v2_only(lame_gfp);
 
 		// add the tags
 		if (MetaDataTrans[MD_ALBUM].present == true) id3tag_set_album(lame_gfp, MetaDataTrans[MD_ALBUM].text);
@@ -1143,7 +1158,6 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID *params)
 		if (MetaDataTrans[MD_TITLE].present == true) id3tag_set_title(lame_gfp, MetaDataTrans[MD_TITLE].text);
 		if (MetaDataTrans[MD_TRACKNUMBER].present == true) id3tag_set_track(lame_gfp, MetaDataTrans[MD_TRACKNUMBER].text);
 		// http://id3.org/id3v2.3.0#Text_information_frames
-		//if (MetaDataTrans[MD_DISCNUMBER].present == true) id3tag_set_textinfo_latin1(lame_gfp, "TPOS", MetaDataTrans[MD_DISCNUMBER].text);
 
 		id3v2_size = lame_get_id3v2_tag(lame_gfp, 0, 0);
 		id3v2tag = new unsigned char[id3v2_size];
