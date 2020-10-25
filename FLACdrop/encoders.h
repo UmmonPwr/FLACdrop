@@ -76,15 +76,16 @@ const int LAME_CBRBITRATES[] = {
 #define FAIL_LIBFLAC_ENCODE			7
 #define FAIL_LIBFLAC_DECODE			8
 #define FAIL_LIBFLAC_METADATA		9
-#define WARN_LIBFLAC_MD5			10
-#define FAIL_REGISTRY_OPEN			11
-#define FAIL_REGISTRY_WRITE			12
-#define FAIL_REGISTRY_READ			13
-#define FAIL_LAME_ONLY_16_BIT		14
-#define FAIL_LAME_INIT				15
-#define FAIL_LAME_ID3TAG			16
-#define FAIL_LAME_ENCODE			17
-#define FAIL_LAME_CLOSE				18
+#define FAIL_LIBFLAC_RELEASE		10
+#define WARN_LIBFLAC_MD5			11
+#define FAIL_REGISTRY_OPEN			12
+#define FAIL_REGISTRY_WRITE			13
+#define FAIL_REGISTRY_READ			14
+#define FAIL_LAME_ONLY_16_BIT		15
+#define FAIL_LAME_INIT				16
+#define FAIL_LAME_ID3TAG			17
+#define FAIL_LAME_ENCODE			18
+#define FAIL_LAME_CLOSE				19
 
 // failure messages for failure codes
 const WCHAR ErrMessage[][60] = {

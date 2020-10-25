@@ -437,130 +437,140 @@ DWORD WINAPI Encode_WAV2MP3(LPVOID *params)
 DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 {
 	sEncodingParameters *myparams = (sEncodingParameters*)params;
-
-	FLAC__bool ok = TRUE;
 	FLAC__StreamEncoder *encoder = NULL;
-	FLAC__StreamEncoderInitStatus init_status;
-	//FLAC__StreamMetadata *metadata[2];
-	//FLAC__StreamMetadata_VorbisComment_Entry entry;
-	FLAC__byte *buffer_wav;				// READSIZE * bytes per sample * channels, we read the WAVE data into here
-	FLAC__int32 *buffer_flac;			// READSIZE * channels
 	unsigned int total_samples = 0;		// can use a 32-bit number due to WAV file size limitations in specification
+	FILE* fin, * fout;
+	int err = 0;
 
 	sWAVEheader WAVEheader;
 	sFMTheader FMTheader;
 	sDATAheader DATAheader;
 	sClientData ClientData;
-
-	FILE *fin, *fout;
-	WCHAR* OutFileName;
 	
-	// setup the message area
-	SendMessage(myparams->progress, PBM_SETPOS, 0, 0);	// reset the progress bar
-	
-	if((_wfopen_s(&fin, myparams->filename, L"rb")) != NULL)
+	// WAV: open file
 	{
-		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
+		if ((_wfopen_s(&fin, myparams->filename, L"rb")) != NULL)
+			err = FAIL_FILE_OPEN;
 	}
 	
-	// read wav header and check if it is valid
-	if(fread(&WAVEheader, 1, 12, fin) != 12)
+	// WAV: read wav header and check if it is valid
+	if (err == ALL_OK)
 	{
-		fclose(fin);
-		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
-	}
-	if(memcmp(WAVEheader.ChunkID, "RIFF", 4) || memcmp(WAVEheader.Format, "WAVE", 4))
-	{
-		fclose(fin);
-		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
-	}
-
-	// read the format chunk's header only to get its chunk size
-	if(fread(&DATAheader, 1, 8, fin) != 8)
-	{
-		fclose(fin);
-		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
-	}
-	fseek(fin, -8, SEEK_CUR);
-	// read the complete wave file header according to its actual chunk size (16, 18 or 40 byte), ChunkSize does not include the size of the header
-	if(fread(&FMTheader, 1, (size_t)DATAheader.ChunkSize+8, fin) != (size_t)DATAheader.ChunkSize+8)
-	{
-		fclose(fin);
-		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_WAV_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
-	}
-
-	// check if the wav file has PCM uncompressed data
-	switch (FMTheader.AudioFormat)
-	{
-		case WAVE_FORMAT_PCM:
-			break;
-		case WAVE_FORMAT_EXTENSIBLE:
-			// in this case the first two byte of the SubFormat is defining the audio format
-			if (FMTheader.SubFormat_AudioFormat == WAVE_FORMAT_PCM)
-			{
-				break;
-			}
-			else
-			{
-				fclose(fin);
-				myparams->ThreadInUse = false;
-				ExitEncThread(FAIL_WAV_UNSUPPORTED, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
-			}
-		default:
+		if (fread(&WAVEheader, 1, 12, fin) != 12)
+		{
 			fclose(fin);
-			myparams->ThreadInUse = false;
-			ExitEncThread(FAIL_WAV_UNSUPPORTED, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
+			err = FAIL_FILE_OPEN;
+		}
+		if (memcmp(WAVEheader.ChunkID, "RIFF", 4) || memcmp(WAVEheader.Format, "WAVE", 4))
+		{
+			fclose(fin);
+			err = FAIL_WAV_BAD_HEADER;
+		}
 	}
 
-	// check if the WAVE file has 16 or 24 bit resolution
-	switch(FMTheader.BitsPerSample)
+	// WAV: read the format chunk's header only to get its chunk size
+	if (err == ALL_OK)
 	{
+		if (fread(&DATAheader, 1, 8, fin) != 8)
+		{
+			fclose(fin);
+			err = FAIL_WAV_BAD_HEADER;
+		}
+	}
+	
+	// WAV: read the complete wave file header according to its actual chunk size (16, 18 or 40 byte), ChunkSize does not include the size of the header
+	if (err == ALL_OK)
+	{
+		fseek(fin, -8, SEEK_CUR);
+		if (fread(&FMTheader, 1, (size_t)DATAheader.ChunkSize + 8, fin) != (size_t)DATAheader.ChunkSize + 8)
+		{
+			fclose(fin);
+			err = FAIL_WAV_BAD_HEADER;
+		}
+	}
+
+	// WAV: check if the wav file has PCM uncompressed data
+	if (err == ALL_OK)
+	{
+		switch (FMTheader.AudioFormat)
+		{
+			case WAVE_FORMAT_PCM:
+				break;
+			case WAVE_FORMAT_EXTENSIBLE:
+				// in this case the first two byte of the SubFormat is defining the audio format
+				if (FMTheader.SubFormat_AudioFormat != WAVE_FORMAT_PCM)
+				{
+					fclose(fin);
+					err = FAIL_WAV_UNSUPPORTED;
+				}
+				break;
+			default:
+				fclose(fin);
+				err = FAIL_WAV_UNSUPPORTED;
+		}
+	}
+
+	// WAV: check if the WAVE file has 16 or 24 bit resolution
+	if (err == ALL_OK)
+	{
+		switch (FMTheader.BitsPerSample)
+		{
 		case 16:
 		case 24:
 			break;
 		default:
 			fclose(fin);
-			myparams->ThreadInUse = false;
-			ExitEncThread(FAIL_LIBFLAC_ONLY_16_24_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
+			err = FAIL_LIBFLAC_ONLY_16_24_BIT;
+		}
 	}
 
-	// search for the data chunk
-	do
+	// WAV: search for the data chunk
+	if (err == ALL_OK)
 	{
-		fread(&DATAheader, 1, 8, fin);
-		fseek(fin, DATAheader.ChunkSize, SEEK_CUR);
+		do
+		{
+			fread(&DATAheader, 1, 8, fin);
+			fseek(fin, DATAheader.ChunkSize, SEEK_CUR);
+		} while (memcmp(DATAheader.ChunkID, "data", 4));
+		fseek(fin, -DATAheader.ChunkSize, SEEK_CUR);													// go back to the beginning of the data chunk
+		total_samples = DATAheader.ChunkSize / FMTheader.NumChannels / (FMTheader.BitsPerSample / 8);	// sound data's size divided by one sample's size
 	}
-	while (memcmp(DATAheader.ChunkID, "data", 4) );
-	fseek(fin, -DATAheader.ChunkSize, SEEK_CUR);													// go back to the beginning of the data chunk
-	total_samples = DATAheader.ChunkSize / FMTheader.NumChannels / (FMTheader.BitsPerSample / 8);	// sound data's size divided by one sample's size
-	SendMessage(myparams->progress, PBM_SETRANGE, 0, MAKELONG(0, total_samples/READSIZE_FLAC));		// set up the progress bar boundaries
    
-	// allocate the libFLAC encoder and data buffers
-	if((encoder = FLAC__stream_encoder_new()) == NULL)
+	// libFLAC: allocate the libFLAC encoder and data buffers
+	if (err == ALL_OK)
 	{
-		fclose(fin);
-		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_LIBFLAC_ALLOC, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
+		if ((encoder = FLAC__stream_encoder_new()) == NULL)
+		{
+			fclose(fin);
+			err = FAIL_LIBFLAC_ALLOC;
+		}
 	}
-	buffer_wav = new FLAC__byte[READSIZE_FLAC * FMTheader.NumChannels * (FMTheader.BitsPerSample / 8)];
-	buffer_flac = new FLAC__int32[READSIZE_FLAC * FMTheader.NumChannels];
 
-	// set the encoder parameters
-	ok &= FLAC__stream_encoder_set_verify(encoder, EncSettings.FLAC_Verify);
-	ok &= FLAC__stream_encoder_set_compression_level(encoder, EncSettings.FLAC_EncodingQuality);
-	ok &= FLAC__stream_encoder_set_channels(encoder, FMTheader.NumChannels);
-	ok &= FLAC__stream_encoder_set_bits_per_sample(encoder, FMTheader.BitsPerSample);
-	ok &= FLAC__stream_encoder_set_sample_rate(encoder, FMTheader.SampleRate);
-	ok &= FLAC__stream_encoder_set_total_samples_estimate(encoder, total_samples);
+	// libFLAC: set the encoder parameters
+	if (err == ALL_OK)
+	{
+		FLAC__bool ok = true;
 
-	// now add some metadata; we'll add some tags and a padding block
-//	if(ok)
+		ok &= FLAC__stream_encoder_set_verify(encoder, EncSettings.FLAC_Verify);
+		ok &= FLAC__stream_encoder_set_compression_level(encoder, EncSettings.FLAC_EncodingQuality);
+		ok &= FLAC__stream_encoder_set_channels(encoder, FMTheader.NumChannels);
+		ok &= FLAC__stream_encoder_set_bits_per_sample(encoder, FMTheader.BitsPerSample);
+		ok &= FLAC__stream_encoder_set_sample_rate(encoder, FMTheader.SampleRate);
+		ok &= FLAC__stream_encoder_set_total_samples_estimate(encoder, total_samples);
+
+		if (ok == false)
+		{
+			fclose(fin);
+			err = FAIL_LIBFLAC_ALLOC;
+		}
+	}
+
+	// libFLAC: now add some metadata; we'll add some tags and a padding block
+//	if(err == ALL_OK)
 //	{
+//		FLAC__StreamMetadata *metadata[2];
+//		FLAC__StreamMetadata_VorbisComment_Entry entry;
+
 //		if((metadata[0] = FLAC__metadata_object_new(FLAC__METADATA_TYPE_VORBIS_COMMENT)) == NULL ||
 //			(metadata[1] = FLAC__metadata_object_new(FLAC__METADATA_TYPE_PADDING)) == NULL ||
 			// there are many tag (vorbiscomment) functions but these are convenient for this particular use:
@@ -571,39 +581,54 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 //		{
 			// out of memory or tag error
 //			ok = false;
+//			err = FAIL_LIBFLAC_METADATA;
 //		}
-
 //		metadata[1]->length = 1234;	// set the padding length
-
 //		ok = FLAC__stream_encoder_set_metadata(encoder, metadata, 2);
 //	}
 
-	// initialize the libFLAC encoder
-	if(ok)
+	// libFLAC: initialize the libFLAC encoder
+	if(err == ALL_OK)
 	{
+		WCHAR* OutFileName;
+
 		OutFileName = new WCHAR[MAXFILENAMELENGTH];
 		wcsncpy_s(OutFileName, MAXFILENAMELENGTH, myparams->filename, wcsnlen(myparams->filename, MAXFILENAMELENGTH)-3);	// leave out the "wav" from the end
 		wcscat_s(OutFileName, MAXFILENAMELENGTH, L"flac");
 		if ((_wfopen_s(&fout, OutFileName, L"w+b")) != NULL)
 		{
 			fclose(fin);
-			myparams->ThreadInUse = false;
-			ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
+			err = FAIL_FILE_OPEN;
 		}
-		ClientData.fout = fout;
-		init_status = FLAC__stream_encoder_init_stream(encoder, write_callback_2FLAC, seek_callback_2FLAC, tell_callback_2FLAC, metadata_callback_2FLAC, &ClientData);
-		delete []OutFileName;
-
-		if(init_status != FLAC__STREAM_ENCODER_INIT_STATUS_OK)
+		else
 		{
-			ok = false;
+			ClientData.fout = fout;
+			if (FLAC__stream_encoder_init_stream(encoder, write_callback_2FLAC, seek_callback_2FLAC, tell_callback_2FLAC, metadata_callback_2FLAC, &ClientData))
+			{
+				fclose(fin);
+				fclose(fout);
+				err = FAIL_LIBFLAC_ALLOC;
+			}
 		}
+
+		delete[]OutFileName;
 	}
 
-	// read blocks of samples from WAVE file and feed to the encoder
-	size_t left, need, i;
-	if(ok)
+	// libFLAC: read blocks of samples from WAVE file and feed to the encoder
+	if(err == ALL_OK)
 	{
+		size_t left, need, i;
+		FLAC__byte *buffer_wav;				// READSIZE * bytes per sample * channels, we read the WAVE data into here
+		FLAC__int32 *buffer_flac;			// READSIZE * channels
+		bool ok = true;
+
+		// set up the progress bar boundaries and reset it
+		SendMessage(myparams->progress, PBM_SETRANGE, 0, MAKELONG(0, total_samples / READSIZE_FLAC));
+		SendMessage(myparams->progress, PBM_SETPOS, 0, 0);
+
+		buffer_wav = new FLAC__byte[READSIZE_FLAC * FMTheader.NumChannels * (FMTheader.BitsPerSample / 8)];
+		buffer_flac = new FLAC__int32[READSIZE_FLAC * FMTheader.NumChannels];
+
 		left = (size_t)total_samples;
 		while(ok && left)
 		{
@@ -645,24 +670,25 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 			}
 			left -= need;
 		}
+		
+		delete[]buffer_wav;
+		delete[]buffer_flac;
 	}
 
-	delete []buffer_wav;
-	delete []buffer_flac;
+	// libFLAC: close the encoder
+	if (err == ALL_OK)
+	{
+		if (FLAC__stream_encoder_finish(encoder) == false) err = FAIL_LIBFLAC_RELEASE;
+		// now that encoding is finished, the metadata can be freed
+		//FLAC__metadata_object_delete(metadata[0]);
+		//FLAC__metadata_object_delete(metadata[1]);
+		fclose(fin);
+		fclose(fout);
+		FLAC__stream_encoder_delete(encoder);
+	}
 
-	ok &= FLAC__stream_encoder_finish(encoder);
-	// now that encoding is finished, the metadata can be freed
-	//FLAC__metadata_object_delete(metadata[0]);
-	//FLAC__metadata_object_delete(metadata[1]);
-
-	FLAC__stream_encoder_delete(encoder);
-	fclose(fin);
-	fclose(fout);
 	myparams->ThreadInUse = false;
-
-	if (ok == TRUE) ExitEncThread(ALL_OK, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
-	else ExitEncThread(FAIL_LIBFLAC_ENCODE, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
-	
+	ExitEncThread(err, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_FLAC);
 	return ALL_OK;	// only to prevent compiler warning message
 }
 
