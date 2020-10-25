@@ -697,133 +697,144 @@ DWORD WINAPI Encode_WAV2FLAC(LPVOID *params)
 //
 //	PURPOSE:	Encode FLAC stream to WAV stream
 //
-DWORD WINAPI Encode_FLAC2WAV(LPVOID *params)
+DWORD WINAPI Encode_FLAC2WAV(LPVOID* params)
 {
-	sEncodingParameters *myparams = (sEncodingParameters*)params;
-
-	FLAC__bool ok = TRUE;
-	FLAC__bool MD5_ok;
-	FLAC__StreamDecoder *decoder = 0;
-	FLAC__StreamDecoderInitStatus init_status;
-	FLAC__StreamDecoderState state;
-	
-	FILE *fin, *fout;
-	WCHAR* OutFileName;
+	sEncodingParameters* myparams = (sEncodingParameters*)params;
+	FLAC__StreamDecoder* decoder = 0;
+	FILE* fin, * fout;
+	int err = 0;
 	sClientData ClientData;
 
-	// setup the message area
-	SendMessage(myparams->progress, PBM_SETPOS, 0, 0);		// reset the progress bar
-
-	// allocate the decoder
-	if((decoder = FLAC__stream_decoder_new()) == NULL)
+	// libFLAC: allocate the decoder
 	{
-		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_LIBFLAC_ALLOC, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
-	}
-
-	// set the decoder parameters
-	ok &= FLAC__stream_decoder_set_md5_checking(decoder, EncSettings.FLAC_MD5check);
-
-	// open the input file
-	if ((_wfopen_s(&fin, myparams->filename, L"r+b")) != NULL)
-	{
-		myparams->ThreadInUse = false;
-		ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
-	}
-	ClientData.fin = fin;
-
-	// initialize decoder
-	if(ok)
-	{
-		init_status = FLAC__stream_decoder_init_stream(decoder, read_callback_2WAV,seek_callback_2WAV, tell_callback_2WAV, length_callback_2WAV, eof_callback_2WAV, write_callback_2WAV, metadata_callback_2WAV, error_callback_2WAV, &ClientData);
-
-		if(init_status != FLAC__STREAM_DECODER_INIT_STATUS_OK)
+		if ((decoder = FLAC__stream_decoder_new()) == NULL)
 		{
-			ok = FALSE;
+			err = FAIL_LIBFLAC_ALLOC;
 		}
 	}
 
-	if(ok)
+	// libFLAC: set the decoder parameters
+	if (err == ALL_OK)
 	{
-		// check the FLAC file parameters
-		ok = FLAC__stream_decoder_process_until_end_of_metadata(decoder);	// read the first block which contains the metadata
-		if (ok == FALSE)													// check if the first block really contained the metadata
+		FLAC__stream_decoder_set_md5_checking(decoder, EncSettings.FLAC_MD5check);
+	}
+
+	// libFLAC: open the input file
+	if (err == ALL_OK)
+	{
+		if ((_wfopen_s(&fin, myparams->filename, L"r+b")) != NULL)
+		{
+			err = FAIL_FILE_OPEN;
+		}
+		else ClientData.fin = fin;
+	}
+
+	// libFLAC: initialize decoder
+	if (err == ALL_OK)
+	{
+		if (FLAC__stream_decoder_init_stream(decoder, read_callback_2WAV, seek_callback_2WAV, tell_callback_2WAV, length_callback_2WAV, eof_callback_2WAV, write_callback_2WAV, metadata_callback_2WAV, error_callback_2WAV, &ClientData) != FLAC__STREAM_DECODER_INIT_STATUS_OK)
 		{
 			fclose(fin);
-			myparams->ThreadInUse = false;
-			ExitEncThread(FAIL_LIBFLAC_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
-		}
-		switch(ClientData.bps)												// check if FLAC file has 16 or 24 bit resolution
-		{
-			case 16:
-			case 24:
-				break;
-			default:
-				fclose(fin);
-				myparams->ThreadInUse = false;
-				ExitEncThread(FAIL_LIBFLAC_ONLY_16_24_BIT, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
-		}
-		if (ClientData.total_samples == 0)									// check if total_samples count is in the STREAMINFO
-		{
-			fclose(fin);
-			myparams->ThreadInUse = false;
-			ExitEncThread(FAIL_LIBFLAC_BAD_HEADER, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
-		}
-
-		// start the decoding
-		if(ok)
-		{
-			// open the output file
-			OutFileName = new WCHAR[MAXFILENAMELENGTH];
-			wcsncpy_s(OutFileName, MAXFILENAMELENGTH, myparams->filename, wcsnlen(myparams->filename, MAXFILENAMELENGTH)-4);	// leave out the "flac" from the end
-			wcscat_s(OutFileName, MAXFILENAMELENGTH, L"wav");
-			if((_wfopen_s(&fout, OutFileName, L"w+b")) != NULL)
-			{	
-				delete []OutFileName;
-				fclose(fin);
-				myparams->ThreadInUse = false;
-				ExitEncThread(FAIL_FILE_OPEN, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
-			}
-			delete []OutFileName;
-			ClientData.fout = fout;
-
-			SendMessage(myparams->progress, PBM_SETRANGE, 0, MAKELONG(0, ClientData.total_samples/ClientData.blocksize));	// set up the progress bar boundaries, block size is around 4k depending on resolution
-			// loop the decoder until it reaches the end of the input file or returns an error
-			do
-			{
-				ok = FLAC__stream_decoder_process_single(decoder);
-				state = FLAC__stream_decoder_get_state(decoder);
-				SendMessage(myparams->progress, PBM_DELTAPOS, 1, 0);	// increase the progress bar
-			}
-			while ((state != FLAC__STREAM_DECODER_END_OF_STREAM && FLAC__STREAM_DECODER_SEEK_ERROR && FLAC__STREAM_DECODER_ABORTED && FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR) && ok == TRUE);
+			err = FAIL_LIBFLAC_ALLOC;
 		}
 	}
-	
-	// close the FLAC decoder
-	state = FLAC__stream_decoder_get_state(decoder);
-	switch(state)
+
+	// libFLAC: check the FLAC file parameters
+	if (err == ALL_OK)
 	{
+		// check if the first block really contained the metadata
+		if (FLAC__stream_decoder_process_until_end_of_metadata(decoder) == FALSE)
+		{
+			fclose(fin);
+			err = FAIL_LIBFLAC_BAD_HEADER;
+		}
+	}
+	if (err == ALL_OK)
+	{
+		// check if FLAC file has 16 or 24 bit resolution
+		switch (ClientData.bps)
+		{
+		case 16:
+		case 24:
+			break;
+		default:
+			fclose(fin);
+			err = FAIL_LIBFLAC_ONLY_16_24_BIT;
+		}
+	}
+	if (err == ALL_OK)
+	{
+		// check if total_samples count is in the STREAMINFO
+		if (ClientData.total_samples == 0)
+		{
+			fclose(fin);
+			err = FAIL_LIBFLAC_BAD_HEADER;
+		}
+	}
+
+	// libFLAC: open the output file
+	if (err == ALL_OK)
+	{
+		WCHAR* OutFileName;
+
+		OutFileName = new WCHAR[MAXFILENAMELENGTH];
+		wcsncpy_s(OutFileName, MAXFILENAMELENGTH, myparams->filename, wcsnlen(myparams->filename, MAXFILENAMELENGTH) - 4);	// leave out the "flac" from the end
+		wcscat_s(OutFileName, MAXFILENAMELENGTH, L"wav");
+		if ((_wfopen_s(&fout, OutFileName, L"w+b")) != NULL)
+		{
+			fclose(fin);
+			err = FAIL_FILE_OPEN;
+		}
+		ClientData.fout = fout;
+
+		delete[]OutFileName;
+	}
+
+	// libFLAC: start the decoding
+	if (err == ALL_OK)
+	{
+		FLAC__bool ok = TRUE;
+		FLAC__StreamDecoderState state;
+
+		// set up the progress bar boundaries, block size is around 4k depending on resolution
+		SendMessage(myparams->progress, PBM_SETPOS, 0, 0);
+		SendMessage(myparams->progress, PBM_SETRANGE, 0, MAKELONG(0, ClientData.total_samples / ClientData.blocksize));
+		
+		// loop the decoder until it reaches the end of the input file or returns an error
+		do
+		{
+			ok = FLAC__stream_decoder_process_single(decoder);
+			state = FLAC__stream_decoder_get_state(decoder);
+			SendMessage(myparams->progress, PBM_DELTAPOS, 1, 0);	// increase the progress bar
+		} while ((state != FLAC__STREAM_DECODER_END_OF_STREAM && FLAC__STREAM_DECODER_SEEK_ERROR && FLAC__STREAM_DECODER_ABORTED && FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR) && ok == TRUE);
+	}
+
+	// libFLAC: close the decoder
+	if (err == ALL_OK)
+	{
+		switch (FLAC__stream_decoder_get_state(decoder))
+		{
 		case FLAC__STREAM_DECODER_SEEK_ERROR:
 		case FLAC__STREAM_DECODER_ABORTED:
 		case FLAC__STREAM_DECODER_MEMORY_ALLOCATION_ERROR:
-			ok = false;
+			err = FAIL_LIBFLAC_ENCODE;
+			fclose(fout);
+			fclose(fin);
 			break;
 		default:
 			break;
+		}
 	}
-	MD5_ok = FLAC__stream_decoder_finish(decoder);
-	FLAC__stream_decoder_delete(decoder);
-	fclose(fout);
-	fclose(fin);
-	myparams->ThreadInUse = false;
-
-	if (ok)
+	if (err == ALL_OK)
 	{
-		if (MD5_ok) ExitEncThread(ALL_OK, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
-		else ExitEncThread(WARN_LIBFLAC_MD5, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
+		if (FLAC__stream_decoder_finish(decoder) == FALSE) err = WARN_LIBFLAC_MD5;
+		fclose(fout);
+		fclose(fin);
+		FLAC__stream_decoder_delete(decoder);
 	}
-	else ExitEncThread(FAIL_LIBFLAC_DECODE, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
 
+	myparams->ThreadInUse = false;
+	ExitEncThread(err, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_WAV);
 	return ALL_OK;
 }
 
