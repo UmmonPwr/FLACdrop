@@ -82,10 +82,11 @@ const int LAME_CBRBITRATES[] = {
 #define FAIL_REGISTRY_WRITE			13
 #define FAIL_REGISTRY_READ			14
 #define FAIL_LAME_ONLY_16_BIT		15
-#define FAIL_LAME_INIT				16
-#define FAIL_LAME_ID3TAG			17
-#define FAIL_LAME_ENCODE			18
-#define FAIL_LAME_CLOSE				19
+#define FAIL_LAME_MAX_2_CHANNEL		16
+#define FAIL_LAME_INIT				17
+#define FAIL_LAME_ID3TAG			18
+#define FAIL_LAME_ENCODE			19
+#define FAIL_LAME_CLOSE				20
 
 // failure messages for failure codes
 const WCHAR ErrMessage[][60] = {
@@ -99,15 +100,17 @@ const WCHAR ErrMessage[][60] = {
 	L"libflac: Encoding failed\r\n",							//7
 	L"libflac: Decoding failed\r\n",							//8
 	L"libflac: Failed to decode metadata",						//9
-	L"libflac warning: MD5 hash mismatch",						//10
-	L"registry: Open failed\r\n",								//11
-	L"registry: Writing failed\r\n",							//12
-	L"registry: Reading failed\r\n",							//13
-	L"libmp3lame: Only 16 bit files are supported",				//14
-	L"libmp3lame: Error during initialization\r\n",				//15
-	L"libmp3lame: Error during writing ID3TAG\r\n",				//16
-	L"libmp3lame: Error during encoding\r\n",					//17
-	L"libmp3lame: Error during closing\r\n"};					//18
+	L"libflac: Failed encoder release",							//10
+	L"libflac warning: MD5 hash mismatch",						//11
+	L"registry: Open failed\r\n",								//12
+	L"registry: Writing failed\r\n",							//13
+	L"registry: Reading failed\r\n",							//14
+	L"libmp3lame: Only 16 bit files are supported",				//15
+	L"libmp3lame: Only mono or stereao files are supported",	//16
+	L"libmp3lame: Error during initialization\r\n",				//17
+	L"libmp3lame: Error during writing ID3TAG\r\n",				//18
+	L"libmp3lame: Error during encoding\r\n",					//19
+	L"libmp3lame: Error during closing\r\n"};					//20
 
 // global encoder settings
 struct sEncoderSettings
