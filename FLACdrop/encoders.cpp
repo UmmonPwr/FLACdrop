@@ -994,18 +994,6 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID* params)
 		}
 	}
 
-	// libmp3lame: initialize encoder
-	if (err == ALL_OK)
-	{
-		lame_gfp = lame_init();
-		if (lame_gfp == NULL)
-		{
-			fclose(fin);
-			FLAC__stream_decoder_delete(decoder);
-			err = FAIL_LAME_INIT;
-		}
-	}
-
 	// libFLAC: initialize the metadata reader
 	// https://xiph.org/flac/api/group__flac__metadata__level2.html
 	if (err == ALL_OK)
@@ -1176,11 +1164,21 @@ DWORD WINAPI Encode_FLAC2MP3(LPVOID* params)
 			{
 				fclose(fin);
 				FLAC__stream_decoder_delete(decoder);
-				myparams->ThreadInUse = false;
-				ExitEncThread(FAIL_LIBFLAC_ALLOC, ghSemaphore, myparams->progresstotal, myparams->filename, OUT_TYPE_MP3);
+				err = FAIL_LIBFLAC_ALLOC;
 			}
+			else FLAC__stream_decoder_process_until_end_of_metadata(decoder);	// go back to the exact position where we were before the metadata reading, otherwise there will be an additional pop sound at the beginning of the converted stream
+		}
+	}
 
-			FLAC__stream_decoder_process_until_end_of_metadata(decoder);	// go back to the exact position where we were before the metadata reading, otherwise there will be an additional pop sound at the beginning of the converted stream
+	// libmp3lame: initialize encoder
+	if (err == ALL_OK)
+	{
+		lame_gfp = lame_init();
+		if (lame_gfp == NULL)
+		{
+			fclose(fin);
+			FLAC__stream_decoder_delete(decoder);
+			err = FAIL_LAME_INIT;
 		}
 	}
 
