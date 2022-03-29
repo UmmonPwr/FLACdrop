@@ -10,6 +10,6 @@ Currently it can convert:
 - from FLAC to MP3
 
 FLACdrop is using the below audio libraries. Only the headers and the pre-built lib files are included:
-- libflac 1.3.2 GitHub version ( https://github.com/xiph/flac )
+- libflac 1.3.4 GitHub version ( https://github.com/xiph/flac )
 - libogg 1.3.3 GitHub version ( https://github.com/xiph/ogg )
 - libmp3lame 3.100.2 ( http://lame.sourceforge.net/ )
